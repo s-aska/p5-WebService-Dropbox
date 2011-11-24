@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -382,11 +382,12 @@ WebService::Dropbox - Perl interface to Dropbox API
     use WebService::Dropbox;
 
     my $dropbox = WebService::Dropbox->new({
-        key => $ENV{'DROPBOX_APP_KEY'},
-        secret => $ENV{'DROPBOX_APP_SECRET'}
+        key => '...', # App Key
+        secret => '...' # App Secret
     });
 
-    if (!$ENV{'DROPBOX_ACCESS_TOKEN'} or !$ENV{'DROPBOX_ACCESS_SECRET'}) {
+    # get access token
+    if (!$access_token or !$access_secret) {
         my $url = $dropbox->login or die $dropbox->error;
         warn "Please Access URL and press Enter: $url";
         <STDIN>;
@@ -394,26 +395,23 @@ WebService::Dropbox - Perl interface to Dropbox API
         warn "access_token: " . $dropbox->access_token;
         warn "access_secret: " . $dropbox->access_secret;
     } else {
-        $dropbox->access_token($ENV{'DROPBOX_ACCESS_TOKEN'});
-        $dropbox->access_secret($ENV{'DROPBOX_ACCESS_SECRET'});
+        $dropbox->access_token($access_token);
+        $dropbox->access_secret($access_secret);
     }
 
     my $info = $dropbox->account_info or die $dropbox->error;
 
     # download
     # https://www.dropbox.com/developers/reference/api#files
-    my $fh_get = File::Temp->new;
+    my $fh_get = IO::File->new('some file', '>');
     $dropbox->files('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
-    $fh_get->flush;
-    $fh_get->seek(0, 0);
+    $fh_get->close;
 
     # upload
     # https://www.dropbox.com/developers/reference/api#files_put
-    my $fh_put = File::Temp->new;
-    $fh_put->print('test.');
-    $fh_put->flush;
-    $fh_put->seek(0, 0);
+    my $fh_put = IO::File->new('some file');
     $dropbox->files_put('make_test_folder/test.txt', $fh_put) or die $dropbox->error;
+    $fh_put->close;
 
     # filelist(metadata)
     # https://www.dropbox.com/developers/reference/api#metadata
@@ -433,15 +431,17 @@ WebService::Dropbox is Perl interface to Dropbox API
 
 =head1 API
 
-=head2 login(callback_url)
+=head2 login(callback_url) - get request token and request secret
 
     my $callback_url = '...'; # optional
     my $url = $dropbox->login($callback_url) or die $dropbox->error;
     warn "Please Access URL and press Enter: $url";
 
-=head2 auth
+=head2 auth - get access token and access secret
 
     $dropbox->auth or die $dropbox->error;
+    warn "access_token: " . $dropbox->access_token;
+    warn "access_secret: " . $dropbox->access_secret;
 
 =head2 account_info
 
@@ -462,14 +462,12 @@ WebService::Dropbox is Perl interface to Dropbox API
 
 L<https://www.dropbox.com/developers/reference/api#account-info>
 
-=head2 files(path, output, [params]) - download (no file list)
+=head2 files(path, output, [params]) - download (no file list, file list is metadata)
 
     # Current Rev
-    my $fh_get = File::Temp->new;
+    my $fh_get = IO::File->new('some file', '>');
     $dropbox->files('folder/file.txt', $fh_get) or die $dropbox->error;
-    $fh_get->flush;
-    $fh_get->seek(0, 0);
-    is $fh_get->getline, 'test.', 'download success.';
+    $fh_get->close;
 
     # Specified Rev
     $dropbox->files('folder/file.txt', $fh_get, { rev => ... }) or die $dropbox->error;
@@ -478,12 +476,9 @@ L<https://www.dropbox.com/developers/reference/api#account-info>
 
 L<https://www.dropbox.com/developers/reference/api#files-GET>
 
-=head2 files_put(path, input)
+=head2 files_put(path, input) - upload
 
-    $fh_put = File::Temp->new;
-    $fh_put->print('test2.');
-    $fh_put->flush;
-    $fh_put->seek(0, 0);
+    my $fh_put = IO::File->new('some file');
     $dropbox->files_put('folder/test.txt', $fh_put) or die $dropbox->error;
     $fh_put->close;
 
@@ -521,11 +516,11 @@ L<https://www.dropbox.com/developers/reference/api#fileops-delete>
 
 =head2 create_folder(path)
 
-    $dropbox->delete('some_folder') or die $dropbox->error;
+    $dropbox->create_folder('some_folder') or die $dropbox->error;
 
 L<https://www.dropbox.com/developers/reference/api#fileops-create-folder>
 
-=head2 metadata(path, [params])
+=head2 metadata(path, [params]) - get file list
 
     my $data = $dropbox->metadata('some_folder') or die $dropbox->error;
 
@@ -548,20 +543,20 @@ L<https://www.dropbox.com/developers/reference/api#revisions>
 =head2 restore(path, [params])
 
     # params rev is Required
-    my $data = $dropbox->revisions('some_file', { rev => $rev }) or die $dropbox->error;
+    my $data = $dropbox->restore('some_file', { rev => $rev }) or die $dropbox->error;
 
 L<https://www.dropbox.com/developers/reference/api#restore>
 
 =head2 search(path, [params])
 
     # query rev is Required
-    my $data = $dropbox->revisions('some_file', { query => $query }) or die $dropbox->error;
+    my $data = $dropbox->search('some_file', { query => $query }) or die $dropbox->error;
 
 L<https://www.dropbox.com/developers/reference/api#search>
 
 =head2 shares(path, [params])
 
-    my $data = $dropbox->revisions('some_file') or die $dropbox->error;
+    my $data = $dropbox->shares('some_file') or die $dropbox->error;
 
 L<https://www.dropbox.com/developers/reference/api#shares>
 

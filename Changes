@@ -1,4 +1,7 @@
 Revision history for Perl extension WebService::Dropbox
 
-0.01    Wed Nov 23 21:10:39 2011
+0.02    Thu Nov 24 10:43:52 JST 2011
+        - fix pod
+
+0.01    Wed Nov 23 21:10:39 JST 2011
         - original version
