@@ -2,14 +2,14 @@ package WebService::Dropbox;
 use strict;
 use warnings;
 use Carp ();
-use Furl::HTTP;
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK SEEK_SET SEEK_END);
 use JSON;
 use Net::OAuth;
 use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -32,6 +32,18 @@ __PACKAGE__->mk_accessors(qw/
     request_method
     timeout
 /);
+
+my $use_lwp;
+
+sub import {
+    eval {
+        require Furl::HTTP;
+    };if ($@) {
+        require LWP::UserAgent;
+        require HTTP::Request;
+        $use_lwp++;
+    }
+}
 
 sub new {
     my ($class, $args) = @_;
@@ -270,13 +282,15 @@ sub api {
 
     $args->{method} ||= 'GET';
     $args->{url} = $self->oauth_request_url($args);
+    $self->request_url($args->{url});
+    $self->request_method($args->{method});
+
+    return $self->api_lwp($args) if $use_lwp;
 
     my ($minor_version, $code, $msg, $headers, $body) = $self->furl->request(%$args);
 
     $self->code($code);
     if ($code != 200) {
-        $self->request_url($args->{url});
-        $self->request_method($args->{method});
         $self->error($body);
         return;
     } else {
@@ -284,6 +298,48 @@ sub api {
     }
 
     return $body;
+}
+
+sub api_lwp {
+    my ($self, $args) = @_;
+
+    my $headers = [];
+    if ($args->{write_file}) {
+        $args->{write_code} = sub {
+            my $buf = shift;
+            $args->{write_file}->print($buf);
+        };
+    }
+    if ($args->{content}) {
+        my $buf;
+        my $content = delete $args->{content};
+        $args->{content} = sub {
+            read($content, $buf, 1024);
+            return $buf;
+        };
+        my $assert = sub {
+            $_[0] or Carp::croak(
+                "Failed to $_[1] for Content-Length: $!",
+            );
+        };
+        $assert->(defined(my $cur_pos = tell($content)), 'tell');
+        $assert->(seek($content, 0, SEEK_END),           'seek');
+        $assert->(defined(my $end_pos = tell($content)), 'tell');
+        $assert->(seek($content, $cur_pos, SEEK_SET),    'seek');
+        my $content_length = $end_pos - $cur_pos;
+        push @$headers, 'Content-Length' => $content_length;
+    }
+    my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
+    my $ua = LWP::UserAgent->new;
+    $ua->timeout($self->timeout);
+    my $res = $ua->request($req, $args->{write_code});
+    $self->code($res->code);
+    if ($res->is_success) {
+        $self->error(undef);
+    } else {
+        $self->error($res->decoded_content);
+    }
+    return $res->decoded_content;
 }
 
 sub api_json {

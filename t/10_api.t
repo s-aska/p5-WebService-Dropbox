@@ -3,6 +3,9 @@ use Data::Dumper;
 use Encode;
 use Test::More;
 use File::Temp;
+use IO::File;
+use File::Basename qw(dirname);
+use File::Spec;
 use WebService::Dropbox;
 
 if (!$ENV{'DROPBOX_APP_KEY'} or !$ENV{'DROPBOX_APP_SECRET'}) {
@@ -121,8 +124,12 @@ my $media = $dropbox->media('make_test_folder/test.txt')
 
 ok $shares->{url}, "media";
 
+$fh_put = IO::File->new(File::Spec->catfile(dirname(__FILE__), 'sample.png'));
+$dropbox->files_put('make_test_folder/sample.png', $fh_put) or die $dropbox->error;
+$fh_put->close;
+
 $fh_get = File::Temp->new;
-$dropbox->thumbnails('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
+$dropbox->thumbnails('make_test_folder/sample.png', $fh_get) or die $dropbox->error;
 $fh_get->flush;
 $fh_get->seek(0, 0);
 ok -s $fh_get, 'thumbnails.';
