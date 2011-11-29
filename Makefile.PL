@@ -6,6 +6,7 @@ WriteMakefile(
     VERSION_FROM  => 'lib/WebService/Dropbox.pm',
     PREREQ_PM     => {
         # 'Furl' => '0.38',
+        'JSON' => '0',
         'Net::OAuth' => '0.27',
         'String::Random' => '0.22',
     },
