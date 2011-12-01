@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
