@@ -20,10 +20,5 @@ WriteMakefile(
         'Net::OAuth' => '0.27',
         'String::Random' => '0.22',
     },
-    MIN_PERL_VERSION => '5.008001',
-    (-d 'xt' and $ENV{AUTOMATED_TESTING} || $ENV{RELEASE_TESTING}) ? (
-        test => {
-            TESTS => 't/*.t xt/*.t',
-        },
-    ) : (),
+    MIN_PERL_VERSION => '5.008001'
 );
