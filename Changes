@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.04    Fri Jan  6 17:56:59 JST 2012
+        - add root document.
+
 0.06    Thu Dec  1 15:41:20 JST 2011
         - fix typo, thanks (wata)
 

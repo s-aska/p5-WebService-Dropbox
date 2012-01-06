@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -407,6 +407,7 @@ sub url {
 
 sub path {
     my ($self, $path) = @_;
+    return '' unless defined $path;
     return '' unless length $path;
     $path=~s|^/||;
     return '/' . $path if $self->no_uri_escape;
@@ -498,6 +499,18 @@ WebService::Dropbox is Perl interface to Dropbox API
     $dropbox->auth or die $dropbox->error;
     warn "access_token: " . $dropbox->access_token;
     warn "access_secret: " . $dropbox->access_secret;
+
+=head2 root - set access type
+
+    # Access Type is App folder
+    # Your app only needs access to a single folder within the user's Dropbox
+    $dropbox->root('sandbox');
+
+    # Access Type is Full Dropbox (default)
+    # Your app needs access to the user's entire Dropbox
+    $dropbox->root('dropbox');
+
+L<https://www.dropbox.com/developers/start/core>
 
 =head2 account_info
 
