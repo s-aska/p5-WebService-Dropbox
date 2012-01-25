@@ -23,4 +23,4 @@ requires:
   Net::OAuth: 0.27
   String::Random: 0.22
   perl: 5.008001
-version: 1.03
+version: 1.05

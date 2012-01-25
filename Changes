@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.05    Wed Jan 18 12:44:01 JST 2012
+        - default timeout 10sec => 1day
+
 1.04    Fri Jan  6 17:56:59 JST 2012
         - add root document.
 
