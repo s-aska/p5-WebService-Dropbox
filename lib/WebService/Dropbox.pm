@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -346,6 +346,7 @@ sub api_json {
     my ($self, $args) = @_;
     
     my $body = $self->api($args) or return;
+    return if $self->error;
     return $body if $self->no_decode_json;
     return decode_json($body);
 }

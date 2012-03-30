@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.06    Fri Mar 30 13:36:58 JST 2012
+        - do not do decode_json at the time of an error
+
 1.05    Wed Jan 18 12:44:01 JST 2012
         - default timeout 10sec => 1day
 
