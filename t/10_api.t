@@ -96,6 +96,9 @@ if ($exists and !$exists->{is_deleted}) {
 my $metadata = $dropbox->metadata('make_test_folder/test.txt')
     or die $dropbox->error;
 
+my $delta = $dropbox->delta()
+    or die $dropbox->error;
+
 my $revisions = $dropbox->revisions('make_test_folder/test.txt')
     or die $dropbox->error;
 

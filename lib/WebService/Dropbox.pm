@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -275,6 +275,17 @@ sub delete {
     });
 }
 
+sub delta {
+    my ($self, $params) = @_;
+
+    $params ||= {};
+
+    $self->api_json({
+        method => 'POST',
+        url => $self->url('https://api.dropbox.com/1/delta', '', $params)
+    });
+}
+
 # private
 
 sub api {
@@ -332,6 +343,7 @@ sub api_lwp {
     my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
     my $ua = LWP::UserAgent->new;
     $ua->timeout($self->timeout);
+    $ua->env_proxy;
     my $res = $ua->request($req, $args->{write_code});
     $self->code($res->code);
     if ($res->is_success) {
@@ -603,6 +615,12 @@ L<https://www.dropbox.com/developers/reference/api#fileops-create-folder>
     return $data;
 
 L<https://www.dropbox.com/developers/reference/api#metadata>
+
+=head2 delta([params]) - get file list
+
+    my $data = $dropbox->delta() or die $dropbox->error;
+
+L<https://www.dropbox.com/developers/reference/api#delta>
 
 =head2 revisions(path, [params])
 

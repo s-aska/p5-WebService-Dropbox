@@ -1,5 +1,9 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.07    Fri Jun 29 03:58:56 JST 2012
+        - add delta method
+        - add $ua->env_proxy
+
 1.06    Fri Mar 30 13:36:58 JST 2012
         - do not do decode_json at the time of an error
 
