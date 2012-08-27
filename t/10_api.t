@@ -44,41 +44,79 @@ is $dropbox->code, 200, "create_folder success";
 $dropbox->create_folder('make_test_folder');
 is $dropbox->code, 403, "create_folder error already exists.";
 
+my $file_mark = '\'!"#$%&(=~|@`{}[]+*;,<>_?-^ .txt';
+
+# files_put
 my $fh_put = File::Temp->new;
+$fh_put->print('test.test.test.');
+$fh_put->flush;
+$fh_put->seek(0, 0);
+$dropbox->files_put('make_test_folder/' . $file_mark, $fh_put);
+$fh_put->close;
+
+# files_put_chunked
+if (-f '/tmp/1GB.dat') {
+    my $fh = IO::File->new('/tmp/1GB.dat');
+    my $data = $dropbox->files_put_chunked('make_test_folder/large-' . $file_mark, $fh);
+    $fh->close;
+}
+
+# metadata
+$exists = $dropbox->metadata('make_test_folder/' . $file_mark)
+    or die $dropbox->error;
+
+if ($exists and !$exists->{is_deleted}) {
+    pass "put.";
+}
+
+# copy
+my $copy = $dropbox->copy('make_test_folder/' . $file_mark, 'make_test_folder/test.txt')
+    or die $dropbox->error;
+
+# copy_ref
+my $copy_ref = $dropbox->copy_ref('make_test_folder/' . $file_mark)
+    or die $dropbox->error;
+
+$copy = $dropbox->copy($copy_ref, 'make_test_folder/test2.txt')
+    or die $dropbox->error;
+
+# move
+my $move = $dropbox->move('make_test_folder/' . $file_mark, 'make_test_folder/test2b.txt')
+    or die $dropbox->error;
+
+# files_put
+$fh_put = File::Temp->new;
 $fh_put->print('test.');
 $fh_put->flush;
 $fh_put->seek(0, 0);
-$dropbox->files_put('make_test_folder/test.txt', $fh_put) or die $dropbox->error;
+$dropbox->files_put('make_test_folder/' . $file_mark, $fh_put)
+    or die $dropbox->error;
 $fh_put->close;
-is $dropbox->code, 200, 'upload success.';
 
+# files
 my $fh_get = File::Temp->new;
-$dropbox->files('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
+$dropbox->files('make_test_folder/' . $file_mark, $fh_get) or die $dropbox->error;
 $fh_get->flush;
 $fh_get->seek(0, 0);
 is $fh_get->getline, 'test.', 'download success.';
 $fh_get->close;
 
+# files_put overwrite
 $fh_put = File::Temp->new;
 $fh_put->print('test2.');
 $fh_put->flush;
 $fh_put->seek(0, 0);
-$dropbox->files_put('make_test_folder/test.txt', $fh_put) or die $dropbox->error;
+$dropbox->files_put('make_test_folder/' . $file_mark, $fh_put) or die $dropbox->error;
 $fh_put->close;
 
-$exists = $dropbox->metadata('make_test_folder/test (1).txt');
-
-if (!$exists or $exists->{is_deleted}) {
-    pass "upload overwrite";
-}
-
 $fh_get = File::Temp->new;
-$dropbox->files('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
+$dropbox->files('make_test_folder/' . $file_mark, $fh_get) or die $dropbox->error;
 $fh_get->flush;
 $fh_get->seek(0, 0);
-is $fh_get->getline, 'test2.', 'download success.';
+is $fh_get->getline, 'test2.', 'overwrite success.';
 $fh_get->close;
 
+# files_put no overwrite
 $fh_put = File::Temp->new;
 $fh_put->print('test3.');
 $fh_put->flush;
@@ -90,43 +128,49 @@ $fh_put->close;
 $exists = $dropbox->metadata('make_test_folder/test (1).txt');
 
 if ($exists and !$exists->{is_deleted}) {
-    pass "upload no overwrite";
+    pass "no overwrite success.";
 }
 
-my $metadata = $dropbox->metadata('make_test_folder/test.txt')
-    or die $dropbox->error;
-
+# delta
 my $delta = $dropbox->delta()
     or die $dropbox->error;
 
-my $revisions = $dropbox->revisions('make_test_folder/test.txt')
+# revisions
+my $revisions = $dropbox->revisions('make_test_folder/' . $file_mark)
     or die $dropbox->error;
 
-my $restore = $dropbox->restore('make_test_folder/test.txt', { rev => $revisions->[1]->{rev} })
+# restore
+my $restore = $dropbox->restore('make_test_folder/' . $file_mark, { rev => $revisions->[1]->{rev} })
     or die $dropbox->error;
 
 $fh_get = File::Temp->new;
-$dropbox->files('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
+$dropbox->files('make_test_folder/' . $file_mark, $fh_get) or die $dropbox->error;
 $fh_get->flush;
 $fh_get->seek(0, 0);
 is $fh_get->getline, 'test.', 'restore success.';
 $fh_get->close;
 
+# search
 my $search = $dropbox->search('make_test_folder/', { query => 'test' })
     or die $dropbox->error;
-is scalar(@$search), 2, 'search';
+is scalar(@$search), 4, 'search';
 
-
-my $shares = $dropbox->shares('make_test_folder/test.txt')
+# shares
+my $shares = $dropbox->shares('make_test_folder/' . $file_mark)
     or die $dropbox->error;
 
 ok $shares->{url}, "shares";
 
-my $media = $dropbox->media('make_test_folder/test.txt')
+# media
+my $media = $dropbox->media('make_test_folder/' . $file_mark)
     or die $dropbox->error;
 
 ok $shares->{url}, "media";
 
+# delete
+$dropbox->delete('make_test_folder/' . $file_mark) or die $dropbox->error;
+
+# thumbnails
 $fh_put = IO::File->new(File::Spec->catfile(dirname(__FILE__), 'sample.png'));
 $dropbox->files_put('make_test_folder/sample.png', $fh_put) or die $dropbox->error;
 $fh_put->close;
@@ -138,40 +182,7 @@ $fh_get->seek(0, 0);
 ok -s $fh_get, 'thumbnails.';
 $fh_get->close;
 
-my $copy = $dropbox->copy('make_test_folder/test.txt', 'make_test_folder/test2.txt')
-    or die $dropbox->error;
-
-$exists = $dropbox->metadata('make_test_folder/test2.txt');
-
-if ($exists and !$exists->{is_deleted}) {
-    pass "copy.";
-}
-
-my $move = $dropbox->move('make_test_folder/test2.txt', 'make_test_folder/test2b.txt')
-    or die $dropbox->error;
-
-$exists = $dropbox->metadata('make_test_folder/test2b.txt');
-
-if ($exists and !$exists->{is_deleted}) {
-    pass "move.";
-}
-
-my $file_mark = '\'!"#$%&(=~|@`{}[]+*;,<>_?-^.txt';
-
-$fh_put = File::Temp->new;
-$fh_put->print('test4.');
-$fh_put->flush;
-$fh_put->seek(0, 0);
-$dropbox->files_put('make_test_folder/' . $file_mark, $fh_put)
-    or die $dropbox->error;
-$fh_put->close;
-
-$exists = $dropbox->metadata('make_test_folder/' . $file_mark);
-
-if ($exists and !$exists->{is_deleted}) {
-    pass "mark.";
-}
-
+# japanese
 my $file_utf8 = decode_utf8('日本語.txt');
 
 $fh_put = File::Temp->new;
