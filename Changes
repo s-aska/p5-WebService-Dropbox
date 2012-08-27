@@ -1,5 +1,10 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.09    Mon Aug 27 22:33:01 JST 2012
+        - add files_put_chunked method
+        - add chunked_upload method
+        - add commit_chunked_upload method
+
 1.07    Fri Jun 29 03:58:56 JST 2012
         - add delta method
         - add $ua->env_proxy
