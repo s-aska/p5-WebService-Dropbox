@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.10    Tue Oct  9 10:26:08 JST 2012
+        - signature_method HMAC-SHA1 to PLAINTEXT ( delete %20.txt bug :/ )
+
 1.09    Mon Aug 27 22:33:01 JST 2012
         - add files_put_chunked method
         - add chunked_upload method

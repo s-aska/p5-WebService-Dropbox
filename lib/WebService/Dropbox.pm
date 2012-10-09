@@ -9,7 +9,7 @@ use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -47,7 +47,7 @@ sub import {
 
 sub new {
     my ($class, $args) = @_;
-    
+
     bless {
         key            => $args->{key}            || '',
         secret         => $args->{secret}         || '',
@@ -373,6 +373,7 @@ sub api {
 
     $args->{method} ||= 'GET';
     $args->{url} = $self->oauth_request_url($args);
+
     $self->request_url($args->{url});
     $self->request_method($args->{method});
 
@@ -436,7 +437,7 @@ sub api_lwp {
 
 sub api_json {
     my ($self, $args) = @_;
-    
+
     my $body = $self->api($args) or return;
     return if $self->error;
     return $body if $self->no_decode_json;
@@ -471,7 +472,7 @@ sub oauth_request_url {
         consumer_secret => $self->secret,
         request_url => $args->{url},
         request_method => uc($args->{method}),
-        signature_method => 'HMAC-SHA1',
+        signature_method => 'PLAINTEXT', # HMAC-SHA1 can't delete %20.txt bug...
         timestamp => time,
         nonce => $self->nonce,
         token => $token,
@@ -493,7 +494,7 @@ sub furl {
 
 sub url {
     my ($self, $base, $path, $params) = @_;
-    my $url = URI->new($base . uri_escape_utf8($self->path($path), q{^a-zA-Z0-9_./-}));
+    my $url = URI->new($base . uri_escape_utf8($self->path($path), q{^a-zA-Z0-9_.~/-}));
     $url->query_form($params) if $params;
     $url->as_string;
 }
@@ -646,7 +647,7 @@ L<https://www.dropbox.com/developers/reference/api#files-GET>
     # no overwrite (default true)
     $dropbox->files_put('folder/test.txt', $fh_put, { overwrite => 0 }) or die $dropbox->error;
     # create 'folder/test (1).txt'
-    
+
     # Specified Parent Rev
     $dropbox->files_put('folder/test.txt', $fh_put, { parent_rev => ... }) or die $dropbox->error;
     # conflict prevention
