@@ -32,9 +32,10 @@
       },
       "runtime" : {
          "requires" : {
-            "Furl" : "0.38",
-            "JSON" : 0,
-            "Net::OAuth" : "0.27",
+            "Furl" : "0.42",
+            "IO::Socket::SSL" : "1.77",
+            "JSON" : "2.53",
+            "Net::OAuth" : "0.28",
             "String::Random" : "0.22",
             "URI" : "1.60",
             "perl" : "5.008001"
@@ -42,5 +43,5 @@
       }
    },
    "release_status" : "stable",
-   "version" : "1.11"
+   "version" : "1.12"
 }

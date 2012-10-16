@@ -1,13 +1,15 @@
 use ExtUtils::MakeMaker;
 
-my %http_module = (Furl => '0.38');
+my %http_module = (Furl => '0.42');
 eval {
     require Furl::HTTP;
 };if ($@) {
     %http_module = (
-        'LWP::UserAgent' => '6.02',
-        'LWP::Protocol::https' => '6.02'
+        'LWP::UserAgent' => '6.04',
+        'LWP::Protocol::https' => '6.03'
     );
+} else {
+    $http_module{'IO::Socket::SSL'} = '1.77';
 }
 
 WriteMakefile(
@@ -16,8 +18,8 @@ WriteMakefile(
     VERSION_FROM  => 'lib/WebService/Dropbox.pm',
     PREREQ_PM     => {
         %http_module,
-        'JSON' => '0',
-        'Net::OAuth' => '0.27',
+        'JSON' => '2.53',
+        'Net::OAuth' => '0.28',
         'String::Random' => '0.22',
         'URI' => '1.60',
     },
