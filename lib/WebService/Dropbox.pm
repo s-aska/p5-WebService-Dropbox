@@ -5,11 +5,10 @@ use Carp ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK SEEK_SET SEEK_END);
 use JSON;
 use Net::OAuth;
-use String::Random qw(random_regex);
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -507,7 +506,15 @@ sub path {
     return '/' . $path;
 }
 
-sub nonce { random_regex('\w{16}'); }
+sub nonce {
+    my $length = 16;
+    my @chars = ( 'A'..'Z', 'a'..'z', '0'..'9' );
+    my $ret;
+    for (1..$length) {
+        $ret .= $chars[int rand @chars];
+    }
+    return $ret;
+}
 
 sub mk_accessors {
     my $package = shift;

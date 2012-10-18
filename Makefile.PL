@@ -20,7 +20,6 @@ WriteMakefile(
         %http_module,
         'JSON' => '2.53',
         'Net::OAuth' => '0.28',
-        'String::Random' => '0.22',
         'URI' => '1.60',
     },
     MIN_PERL_VERSION => '5.008001'
