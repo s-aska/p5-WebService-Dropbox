@@ -1,6 +1,6 @@
 use ExtUtils::MakeMaker;
 
-my %http_module = (Furl => '0.42');
+my %http_module = (Furl => '1.01');
 eval {
     require Furl::HTTP;
 };if ($@) {
