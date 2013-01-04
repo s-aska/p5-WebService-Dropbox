@@ -37,6 +37,7 @@ $WebService::Dropbox::USE_LWP = 0;
 sub import {
     eval {
         require Furl::HTTP;
+        require IO::Socket::SSL;
     };if ($@) {
         require LWP::UserAgent;
         require HTTP::Request;
@@ -485,7 +486,10 @@ sub furl {
     my $self = shift;
     unless ($self->{furl}) {
         $self->{furl} = Furl::HTTP->new(
-            timeout => $self->timeout
+            timeout => $self->timeout,
+            ssl_opts => {
+                SSL_verify_mode => IO::Socket::SSL::SSL_VERIFY_PEER(),
+            },
         );
     }
     $self->{furl};
