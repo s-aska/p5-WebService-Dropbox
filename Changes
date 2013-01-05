@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.14    Sun Jan  6 07:19:10 JST 2013
+        - No warnings, more security (gfx)
+
 1.13    Thu Oct 18 17:23:40 JST 2012
         - remove require String::Random
 
