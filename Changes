@@ -1,5 +1,9 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.15    Mon Jan  7 20:22:12 JST 2013
+        - fix utf8 filename bug
+        - support furl's env_proxy
+
 1.14    Sun Jan  6 07:19:10 JST 2013
         - No warnings, more security (gfx)
 

@@ -14,7 +14,8 @@ if (!$ENV{'DROPBOX_APP_KEY'} or !$ENV{'DROPBOX_APP_SECRET'}) {
 
 my $dropbox = WebService::Dropbox->new({
     key => $ENV{'DROPBOX_APP_KEY'},
-    secret => $ENV{'DROPBOX_APP_SECRET'}
+    secret => $ENV{'DROPBOX_APP_SECRET'},
+    env_proxy => 1,
 });
 
 if (!$ENV{'DROPBOX_ACCESS_TOKEN'} or !$ENV{'DROPBOX_ACCESS_SECRET'}) {
@@ -44,7 +45,7 @@ is $dropbox->code, 200, "create_folder success";
 $dropbox->create_folder('make_test_folder');
 is $dropbox->code, 403, "create_folder error already exists.";
 
-my $file_mark = '\'!"#$%&(=~|@`{}[]+*;,<>_?-^ .txt';
+my $file_mark = decode_utf8('\'!"#$%&(=~|@`{}[]+*;,<>_?-^ 日本語.txt');
 
 # files_put
 my $fh_put = File::Temp->new;
@@ -184,6 +185,7 @@ $fh_get->close;
 
 # japanese
 my $file_utf8 = decode_utf8('日本語.txt');
+my $file_move_utf8 = decode_utf8('日本語_移動.txt');
 
 $fh_put = File::Temp->new;
 $fh_put->print('test5.');
@@ -198,5 +200,9 @@ $exists = $dropbox->metadata('make_test_folder/' . $file_utf8);
 if ($exists and !$exists->{is_deleted}) {
     pass "utf8.";
 }
+
+$dropbox->move('make_test_folder/' . $file_utf8, 'make_test_folder/' . $file_move_utf8) or die $dropbox->error;
+
+$dropbox->delete('make_test_folder/' . $file_move_utf8) or die $dropbox->error;
 
 done_testing();

@@ -8,7 +8,7 @@ use Net::OAuth;
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.14';
+our $VERSION = '1.15';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -29,7 +29,6 @@ __PACKAGE__->mk_accessors(qw/
     request_url
     request_method
     timeout
-    lwp_env_proxy
 /);
 
 $WebService::Dropbox::USE_LWP = 0;
@@ -59,7 +58,7 @@ sub new {
         timeout        => $args->{timeout}        || (60 * 60 * 24),
         no_decode_json => $args->{no_decode_json} || 0,
         no_uri_escape  => $args->{no_uri_escape}  || 0,
-        lwp_env_proxy  => $args->{lwp_env_proxy}  || 0
+        env_proxy      => $args->{lwp_env_proxy}  || $args->{env_proxy} || 0,
     }, $class;
 }
 
@@ -118,7 +117,8 @@ sub files {
             unless $opts->{write_file};
     }
     $self->api({
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path, $params),
+        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
+        extra_params => $params,
         %$opts
     });
 
@@ -132,8 +132,9 @@ sub files_put {
     $opts ||= {};
     $self->api_json({
         method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/files_put/' . $self->root, $path, $params),
+        url => $self->url('https://api-content.dropbox.com/1/files_put/' . $self->root, $path),
         content => $content,
+        extra_params => $params,
         %$opts
     });
 }
@@ -144,8 +145,9 @@ sub files_post {
     $opts ||= {};
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path, $params),
+        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
         content => $content,
+        extra_params => $params,
         %$opts
     });
 }
@@ -200,8 +202,9 @@ sub chunked_upload {
     $opts ||= {};
     $self->api_json({
         method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/chunked_upload', '', $params),
+        url => $self->url('https://api-content.dropbox.com/1/chunked_upload', ''),
         content => $content,
+        extra_params => $params,
         %$opts
     });
 }
@@ -212,7 +215,8 @@ sub commit_chunked_upload {
     $opts ||= {};
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/commit_chunked_upload/' . $self->root, $path, $params),
+        url => $self->url('https://api-content.dropbox.com/1/commit_chunked_upload/' . $self->root, $path),
+        extra_params => $params,
         %$opts
     });
 }
@@ -221,18 +225,18 @@ sub metadata {
     my ($self, $path, $params) = @_;
 
     $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/metadata/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/metadata/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
 sub delta {
     my ($self, $params) = @_;
 
-    $params ||= {};
-
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/delta', '', $params)
+        url => $self->url('https://api.dropbox.com/1/delta', ''),
+        extra_params => $params
     });
 }
 
@@ -240,7 +244,8 @@ sub revisions {
     my ($self, $path, $params) = @_;
 
     $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/revisions/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/revisions/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -249,7 +254,8 @@ sub restore {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/restore/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/restore/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -257,7 +263,8 @@ sub search {
     my ($self, $path, $params) = @_;
 
     $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/search/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/search/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -266,7 +273,8 @@ sub shares {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/shares/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/shares/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -275,7 +283,8 @@ sub media {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/media/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/media/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -284,7 +293,8 @@ sub copy_ref {
 
     $self->api_json({
         method => 'GET',
-        url => $self->url('https://api.dropbox.com/1/copy_ref/' . $self->root, $path, $params)
+        url => $self->url('https://api.dropbox.com/1/copy_ref/' . $self->root, $path),
+        extra_params => $params
     });
 }
 
@@ -301,9 +311,11 @@ sub thumbnails {
         Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
             unless $opts->{write_file};
     }
+    $opts->{extra_params} = $params if $params;
     $self->api({
-        url => $self->url('https://api-content.dropbox.com/1/thumbnails/' . $self->root, $path, $params),
-        %$opts
+        url => $self->url('https://api-content.dropbox.com/1/thumbnails/' . $self->root, $path),
+        extra_params => $params,
+        %$opts,
     });
     return if $self->error;
     return 1;
@@ -318,7 +330,8 @@ sub create_folder {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/create_folder', '', $params)
+        url => $self->url('https://api.dropbox.com/1/fileops/create_folder', ''),
+        extra_params => $params
     });
 }
 
@@ -336,7 +349,8 @@ sub copy {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/copy', '', $params)
+        url => $self->url('https://api.dropbox.com/1/fileops/copy', ''),
+        extra_params => $params
     });
 }
 
@@ -350,7 +364,8 @@ sub move {
 
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/move', '', $params)
+        url => $self->url('https://api.dropbox.com/1/fileops/move', ''),
+        extra_params => $params
     });
 }
 
@@ -359,10 +374,11 @@ sub delete {
 
     $params ||= {};
     $params->{root} ||= $self->root;
-    $params->{path} = $self->path($path);
+    $params->{path} ||= $self->path($path);
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/delete', '', $params)
+        url => $self->url('https://api.dropbox.com/1/fileops/delete', ''),
+        extra_params => $params
     });
 }
 
@@ -424,7 +440,7 @@ sub api_lwp {
     my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
     my $ua = LWP::UserAgent->new;
     $ua->timeout($self->timeout);
-    $ua->env_proxy if $self->lwp_env_proxy;
+    $ua->env_proxy if $self->{env_proxy};
     my $res = $ua->request($req, $args->{write_code});
     $self->code($res->code);
     if ($res->is_success) {
@@ -476,7 +492,8 @@ sub oauth_request_url {
         timestamp => time,
         nonce => $self->nonce,
         token => $token,
-        token_secret => $token_secret
+        token_secret => $token_secret,
+        extra_params => $args->{extra_params},
     );
     $request->sign;
     $request->to_url;
@@ -491,6 +508,7 @@ sub furl {
                 SSL_verify_mode => IO::Socket::SSL::SSL_VERIFY_PEER(),
             },
         );
+        $self->{furl}->env_proxy if $self->{env_proxy};
     }
     $self->{furl};
 }
@@ -530,6 +548,11 @@ sub mk_accessors {
         };
     }
 }
+
+sub env_proxy { $_[0]->{env_proxy} = defined $_[1] ? $_[1] : 1 }
+
+# Backward Compatibility
+sub lwp_env_proxy { shift->env_proxy(@_) }
 
 1;
 __END__
@@ -814,10 +837,11 @@ L<https://www.dropbox.com/developers/reference/api#copy_ref>
 
 L<https://www.dropbox.com/developers/reference/api#thumbnails>
 
-=head2 lwp_env_proxy(0 or 1)
+=head2 env_proxy
 
-    # $lwp->env_proxy;
-    $dropbox->lwp_env_proxy(1);
+enable HTTP_PROXY, NO_PROXY
+
+    $dropbox->env_proxy;
 
 =head1 AUTHOR
 
