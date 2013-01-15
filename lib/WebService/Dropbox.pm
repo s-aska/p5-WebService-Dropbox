@@ -8,7 +8,7 @@ use Net::OAuth;
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.15';
+our $VERSION = '1.16';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -111,10 +111,12 @@ sub files {
         $opts->{write_code} = $output; # code ref
     } elsif (ref $output) {
         $opts->{write_file} = $output; # file handle
+        binmode $opts->{write_file};
     } else {
         open $opts->{write_file}, '>', $output; # file path
         Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
             unless $opts->{write_file};
+        binmode $opts->{write_file};
     }
     $self->api({
         url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
@@ -306,10 +308,12 @@ sub thumbnails {
         $opts->{write_code} = $output; # code ref
     } elsif (ref $output) {
         $opts->{write_file} = $output; # file handle
+        binmode $opts->{write_file};
     } else {
         open $opts->{write_file}, '>', $output; # file path
         Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
             unless $opts->{write_file};
+        binmode $opts->{write_file};
     }
     $opts->{extra_params} = $params if $params;
     $self->api({
