@@ -38,10 +38,14 @@ sub import {
         require Furl::HTTP;
         require IO::Socket::SSL;
     };if ($@) {
-        require LWP::UserAgent;
-        require HTTP::Request;
-        $WebService::Dropbox::USE_LWP++;
+        __PACKAGE__->use_lwp;
     }
+}
+
+sub use_lwp {
+    require LWP::UserAgent;
+    require HTTP::Request;
+    $WebService::Dropbox::USE_LWP++;
 }
 
 sub new {
@@ -441,8 +445,8 @@ sub api_lwp {
         my $content_length = $end_pos - $cur_pos;
         push @$headers, 'Content-Length' => $content_length;
     }
-    if ($args->{range}) {
-        push @$headers, 'Range' => $args->{range};
+    if ($args->{headers}) {
+        push @$headers, @{ $args->{headers} };
     }
     my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
     my $ua = LWP::UserAgent->new;
@@ -665,7 +669,7 @@ L<https://www.dropbox.com/developers/start/core>
 
 L<https://www.dropbox.com/developers/reference/api#account-info>
 
-=head2 files(path, output, [params]) - download (no file list, file list is metadata)
+=head2 files(path, output, [params, opts]) - download (no file list, file list is metadata)
 
     # Current Rev
     my $fh_get = IO::File->new('some file', '>');
@@ -681,6 +685,12 @@ L<https://www.dropbox.com/developers/reference/api#account-info>
         my $chunk = @_ == 4 ? @_[3] : $_[0];
         print $chunk;
     }) or die $dropbox->error;
+
+    # Range
+    $dropbox->files('folder/file.txt', $fh_get) or die $dropbox->error;
+    > "0123456789"
+    $dropbox->files('folder/file.txt', $fh_get, undef, { headers => ['Range' => 'bytes=5-6'] }) or die $dropbox->error;
+    > "56"
 
 L<https://www.dropbox.com/developers/reference/api#files-GET>
 
