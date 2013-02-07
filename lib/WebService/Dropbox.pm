@@ -672,7 +672,12 @@ L<https://www.dropbox.com/developers/reference/api#account-info>
     # Specified Rev
     $dropbox->files('folder/file.txt', $fh_get, { rev => ... }) or die $dropbox->error;
 
-    # output is fh or code ref.
+    # Code ref
+    $dropbox->files('folder/file.txt', sub {
+        # compatible with LWP::UserAgent and Furl::HTTP
+        my $chunk = @_ == 4 ? @_[3] : $_[0];
+        print $chunk;
+    }) or die $dropbox->error;
 
 L<https://www.dropbox.com/developers/reference/api#files-GET>
 
