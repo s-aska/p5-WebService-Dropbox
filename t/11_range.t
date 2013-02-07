@@ -72,3 +72,5 @@ $fh_get->flush;
 $fh_get->seek(0, 0);
 is $fh_get->getline, 'test.', 'download range success.';
 $fh_get->close;
+
+done_testing();

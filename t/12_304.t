@@ -38,3 +38,5 @@ my $exists2 = $dropbox->metadata('make_test_folder', { hash => $exists->{hash} }
 
 ok !$exists2;
 is $dropbox->code, 304;
+
+done_testing();
