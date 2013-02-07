@@ -441,6 +441,9 @@ sub api_lwp {
         my $content_length = $end_pos - $cur_pos;
         push @$headers, 'Content-Length' => $content_length;
     }
+    if ($args->{range}) {
+        push @$headers, 'Range' => $args->{range};
+    }
     my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
     my $ua = LWP::UserAgent->new;
     $ua->timeout($self->timeout);
