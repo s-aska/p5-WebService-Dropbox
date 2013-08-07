@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+1.18    Thu Jul 25 16:09:16 JST 2013
+        - wrong return precedence (Reini Urban)
+
 1.17    Thu Feb  7 17:35:27 JST 2013
         - add range header (rosti)
 

@@ -8,7 +8,7 @@ use Net::OAuth;
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.17';
+our $VERSION = '1.18';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
@@ -185,7 +185,7 @@ sub files_put_chunked {
                 $path, {
                     upload_id => $data->{upload_id},
                     ( $params ? %$params : () )
-                }, $opts) or die $self->error;
+                }, $opts) || die $self->error;
         }
 
         $tmp->flush;
