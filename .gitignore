@@ -10,4 +10,7 @@ nytprof.out
 MANIFEST.bak
 *.sw[po]
 *.tar.gz
+.proverc
 MYMETA.*
+local
+cpanfile.snapshot

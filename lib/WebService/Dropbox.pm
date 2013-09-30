@@ -8,7 +8,7 @@ use Net::OAuth;
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.18';
+our $VERSION = '1.19';
 
 my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
 my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
