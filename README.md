@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/s-aska/p5-WebService-Dropbox.png?branch=master)](https://travis-ci.org/s-aska/p5-WebService-Dropbox)
 # NAME
 
 WebService::Dropbox - Perl interface to Dropbox API
