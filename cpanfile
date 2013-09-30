@@ -1,14 +1,22 @@
-requires 'ExtUtils::MakeMaker' => '6.17';
-requires 'JSON' => '2.53';
-requires 'Net::OAuth' => '0.28';
-requires 'URI' => '1.60';
+requires 'perl', '5.008001';
 
-eval {
-    require Furl::HTTP;
-};if ($@) {
-    requires 'LWP::UserAgent' => '6.04';
-    requires 'LWP::Protocol::https' => '6.03';
-} else {
-    requires 'Furl' => '1.01';
-    requires 'IO::Socket::SSL' => '1.77';
-}
+requires 'JSON', '2.59';
+requires 'Net::OAuth', '0.28';
+requires 'URI', '1.60';
+requires 'LWP::UserAgent', '6.05';
+requires 'LWP::Protocol::https', '6.04';
+
+# Modern http client.
+recommends 'Furl', '2.19';
+recommends 'IO::Socket::SSL', '1.954';
+
+# Module required for license otherwise Perl_5 license.
+recommends 'Software::License';
+
+on 'test' => sub {
+    requires 'Test::More', '0.98';
+};
+
+on 'configure' => sub {
+    requires 'Module::Build';
+};

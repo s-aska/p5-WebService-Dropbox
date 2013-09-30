@@ -1,5 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
+{{$NEXT}}
+        - minil migrate
+
 1.19    Mon Sep 30 15:33:45 JST 2013
         - remove MYMETA and .gitignore (charsbar)
 

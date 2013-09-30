@@ -1,4 +1,9 @@
 use strict;
-use Test::More tests => 1;
+use Test::More;
 
-BEGIN { use_ok 'WebService::Dropbox' }
+use_ok $_ for qw(
+    WebService::Dropbox
+);
+
+done_testing;
+
