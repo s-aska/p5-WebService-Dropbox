@@ -47,6 +47,7 @@
             "Software::License" : "0"
          },
          "requires" : {
+            "HTTP::Message" : "6.06",
             "JSON" : "2.59",
             "LWP::Protocol::https" : "6.04",
             "LWP::UserAgent" : "6.05",
@@ -73,7 +74,7 @@
          "web" : "https://github.com/s-aska/p5-WebService-Dropbox"
       }
    },
-   "version" : "1.20",
+   "version" : "1.21",
    "x_authority" : "cpan:ASKADNA",
    "x_contributors" : [
       "Fuji, Goro <g.psy.va@gmail.com>",
