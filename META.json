@@ -4,7 +4,7 @@
       "Shinichiro Aska"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v0.7.2, CPAN::Meta::Converter version 2.132140",
+   "generated_by" : "Minilla/v0.7.2, CPAN::Meta::Converter version 2.142690",
    "license" : [
       "perl_5"
    ],
@@ -74,7 +74,7 @@
          "web" : "https://github.com/s-aska/p5-WebService-Dropbox"
       }
    },
-   "version" : "1.21",
+   "version" : "1.22",
    "x_authority" : "cpan:ASKADNA",
    "x_contributors" : [
       "Fuji, Goro <g.psy.va@gmail.com>",

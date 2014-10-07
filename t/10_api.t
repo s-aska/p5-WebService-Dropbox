@@ -18,6 +18,8 @@ my $dropbox = WebService::Dropbox->new({
     env_proxy => 1,
 });
 
+$dropbox->use_lwp if $ENV{'DROPBOX_USE_LWP'};
+
 if (!$ENV{'DROPBOX_ACCESS_TOKEN'} or !$ENV{'DROPBOX_ACCESS_SECRET'}) {
     my $url = $dropbox->login or die $dropbox->error;
     warn "Please Access URL and press Enter: $url";
@@ -38,6 +40,9 @@ if ($exists and !$exists->{is_deleted}) {
     $dropbox->delete('make_test_folder') or die $dropbox->error;
     is $dropbox->code, 200, "delete make_test_folder";
 }
+
+$dropbox->files("", File::Temp->new);
+is $dropbox->error, 'File not found', 'File not found';
 
 $dropbox->create_folder('make_test_folder') or die $dropbox->error;
 is $dropbox->code, 200, "create_folder success";
