@@ -9,6 +9,8 @@ my $box = WebService::Dropbox->new({
     secret => $secret,
 });
 
+$box->debug;
+
 if ($access_token) {
     $box->access_token($access_token);
 } else {
@@ -30,11 +32,16 @@ unless ($res) {
 }
 
 use Data::Dumper;
-print Dumper($res);
+warn Dumper($res);
 
 {
     my $res = $box->files('/aerith.json', './aerith.json');
-    print Dumper($res);
+    warn Dumper($res);
 }
 
+{
+    open(my $fh, '<', './aerith.json');
+    my $res = $box->files_put_chunked('/aerith-test.json', $fh, { commit => { mode => 'overwrite' } }, undef, 10000);
+    warn Dumper($res);
+}
 

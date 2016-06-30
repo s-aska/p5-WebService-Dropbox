@@ -6,6 +6,7 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK SEEK_SET SEEK_END);
 use JSON;
 use URI;
 use URI::Escape;
+use File::Temp;
 
 our $VERSION = '2.00';
 
@@ -17,9 +18,6 @@ __PACKAGE__->mk_accessors(qw/
     secret
     access_token
     access_secret
-    root
-
-    account_id
 
     no_decode_json
     error
@@ -30,6 +28,7 @@ __PACKAGE__->mk_accessors(qw/
 /);
 
 $WebService::Dropbox::USE_LWP = 0;
+$WebService::Dropbox::DEBUG = 1;
 
 sub import {
     eval {
@@ -42,8 +41,12 @@ sub import {
 
 sub use_lwp {
     require LWP::UserAgent;
-    require HTTP::Request;
+    require HTTP::Request::Common;
     $WebService::Dropbox::USE_LWP++;
+}
+
+sub debug {
+    $WebService::Dropbox::DEBUG++;
 }
 
 sub new {
@@ -54,11 +57,10 @@ sub new {
         secret         => $args->{secret}         || '',
         access_token   => $args->{access_token}   || '',
         access_secret  => $args->{access_secret}  || '',
-        root           => $args->{root}           || 'dropbox',
         timeout        => $args->{timeout}        || (60 * 60 * 24),
         no_decode_json => $args->{no_decode_json} || 0,
         no_uri_escape  => $args->{no_uri_escape}  || 0,
-        env_proxy      => $args->{lwp_env_proxy}  || $args->{env_proxy} || 0,
+        env_proxy      => $args->{env_proxy}      || 0,
     }, $class;
 }
 
@@ -94,17 +96,18 @@ sub auth {
             code          => $code,
             ( $redirect_uri ? ( redirect_uri => $redirect_uri ) : () ),
         },
-    }) or return;
+    });
 
-    $self->access_token($data->{access_token});
-    $self->account_id($data->{account_id});
+    if ($data && $data->{access_token}) {
+        $self->access_token($data->{access_token});
+    }
+
+    $data;
 }
 
 # See https://www.dropbox.com/developers/documentation/http/documentation#users-get_current_account
 sub account_info {
-    my ($self, $account_id) = @_;
-
-    $account_id //= $self->account_id;
+    my ($self) = @_;
 
     $self->api_json({
         method => 'POST',
@@ -136,32 +139,31 @@ sub files {
         %$opts
     });
 
-    return if $self->error;
-    return $res;
+    if ($self->error) {
+        return;
+    }
+
+    $res;
 }
 
+# See https://www.dropbox.com/developers/documentation/http/documentation#files-upload
 sub files_put {
     my ($self, $path, $content, $params, $opts) = @_;
 
-    $opts ||= {};
-    $self->api_json({
-        method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/files_put/' . $self->root, $path),
-        content => $content,
-        extra_params => $params,
-        %$opts
-    });
-}
-
-sub files_post {
-    my ($self, $path, $content, $params, $opts) = @_;
+    my $arg = {
+        path => $path,
+        %{ $params // {} },
+    };
 
     $opts ||= {};
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
+        url => 'https://content.dropboxapi.com/2/files/upload',
         content => $content,
-        extra_params => $params,
+        headers => [
+            'Dropbox-API-Arg' => encode_json($arg),
+            'Content-Type' => 'application/octet-stream',
+        ],
         %$opts
     });
 }
@@ -171,69 +173,158 @@ sub files_put_chunked {
 
     $limit ||= 4 * 1024 * 1024; # A typical chunk is 4 MB
 
+    my $session_id;
+    my $offset = 0;
+
+    my $commit = $params->{commit} // {};
+    $commit->{path} = $path;
+
     my $upload;
     $upload = sub {
-        my $data = shift;
         my $buf;
-        my $total = $limit;
+        my $total = 0;
         my $chunk = 1024;
         my $tmp = File::Temp->new;
+        my $is_last;
         while (my $read = read($content, $buf, $chunk)) {
             $tmp->print($buf);
-            $total -= $read;
-            if ($chunk > $total) {
-                $chunk = $total;
+            $total += $read;
+            my $remaining = $limit - $total;
+            if ($chunk > $remaining) {
+                $chunk = $remaining;
             }
-            last unless $chunk;
-        }
-
-        if ($total == $limit) {
-            $data->{upload_id} or die 'read error.';
-            return $self->commit_chunked_upload(
-                $path, {
-                    upload_id => $data->{upload_id},
-                    ( $params ? %$params : () )
-                }, $opts) || die $self->error;
+            unless ($chunk) {
+                last;
+            }
         }
 
         $tmp->flush;
         $tmp->seek(0, 0);
-        $data = $self->chunked_upload($tmp, {
-            ( $data   ? %$data   : () ),
-            ( $params ? %$params : () )
-        }, $opts) or die $self->error;
-        $upload->({
-            upload_id => $data->{upload_id},
-            offset    => $data->{offset}
-        });
+
+        if ($total < $limit) {
+            if ($session_id) {
+                my $arg = {
+                    cursor => {
+                        session_id => $session_id,
+                        offset     => $offset,
+                    },
+                    commit => $commit,
+                };
+                return $self->upload_session_finish($tmp, $arg, $opts);
+            } else {
+                return $self->files_put($path, $tmp, {}, $opts);
+            }
+        } elsif ($session_id) {
+            my $arg = {
+                cursor => {
+                    session_id => $session_id,
+                    offset     => $offset,
+                },
+            };
+            $self->upload_session_append_v2($tmp, $arg, $opts);
+            $offset += $total;
+        } else {
+            my $res = $self->upload_session_start($tmp, {}, $opts);
+            if ($res && $res->{session_id}) {
+                $session_id = $res->{session_id};
+                $offset = $total;
+            } else {
+                return;
+            }
+        }
+        if ($self->error) {
+            return;
+        }
+        $upload->();
     };
     $upload->();
 }
 
-sub chunked_upload {
-    my ($self, $content, $params, $opts) = @_;
+sub upload_session_start {
+    my ($self, $content, $arg, $opts) = @_;
 
+    $arg ||= {};
     $opts ||= {};
     $self->api_json({
-        method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/chunked_upload', ''),
+        method => 'POST',
+        url => 'https://content.dropboxapi.com/2/files/upload_session/start',
         content => $content,
-        extra_params => $params,
+        headers => [
+            'Dropbox-API-Arg' => encode_json($arg),
+            'Content-Type' => 'application/octet-stream',
+        ],
         %$opts
     });
 }
 
-sub commit_chunked_upload {
-    my ($self, $path, $params, $opts) = @_;
+sub upload_session_append_v2 {
+    my ($self, $content, $arg, $opts) = @_;
 
     $opts ||= {};
     $self->api_json({
         method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/commit_chunked_upload/' . $self->root, $path),
-        extra_params => $params,
+        url => 'https://content.dropboxapi.com/2/files/upload_session/append_v2',
+        content => $content,
+        headers => [
+            'Dropbox-API-Arg' => encode_json($arg),
+            'Content-Type' => 'application/octet-stream',
+        ],
         %$opts
     });
 }
+
+sub upload_session_finish {
+    my ($self, $content, $arg, $opts) = @_;
+
+    $opts ||= {};
+    $self->api_json({
+        method => 'POST',
+        url => 'https://content.dropboxapi.com/2/files/upload_session/finish',
+        content => $content,
+        headers => [
+            'Dropbox-API-Arg' => encode_json($arg),
+            'Content-Type' => 'application/octet-stream',
+        ],
+        %$opts
+    });
+}
+
+# sub chunked_upload {
+#     my ($self, $content, $params, $opts) = @_;
+
+#     # if ($params->{cursor}) {
+
+#     # }
+
+#     # my $arg = {
+#     #     path => $path,
+#     #     %{ $params // {} },
+#     # };
+
+#     $opts ||= {};
+#     $self->api_json({
+#         method => 'PUT',
+#         url => $self->url('https://api-content.dropbox.com/1/chunked_upload', ''),
+#         content => $content,
+#         headers => [
+#             'Dropbox-API-Arg' => encode_json($arg),
+#         ],
+#         # extra_params => $params,
+#         %$opts
+#     });
+# }
+
+# sub commit_chunked_upload {
+#     my ($self, $path, $params, $opts) = @_;
+
+#     $opts ||= {};
+#     $self->api_json({
+#         method => 'POST',
+#         url => $self->url('https://api-content.dropbox.com/1/commit_chunked_upload/' . $self->root, $path),
+#         extra_params => $params,
+#         %$opts
+#     });
+# }
 
 sub metadata {
     my ($self, $path, $params) = @_;
@@ -401,7 +492,7 @@ sub delete {
 # private
 
 sub parse_error ($) {
-    eval { decode_json($_[0])->{error} } || $_[0];
+    eval { decode_json($_[0]) } || $_[0];
 }
 
 sub api {
@@ -420,6 +511,17 @@ sub api {
 
     $self->request_url($args->{url});
     $self->request_method($args->{method});
+
+    if ($WebService::Dropbox::DEBUG) {
+        my $req_args = '';
+        if ($args->{headers}) {
+            my %headers = @{ $args->{headers} };
+            if ($headers{'Dropbox-API-Arg'}) {
+                $req_args = $headers{'Dropbox-API-Arg'};
+            }
+        }
+        warn sprintf("[DEBUG] %s %s %s", $args->{url}, $args->{method}, $req_args);
+    }
 
     return $self->api_lwp($args) if $WebService::Dropbox::USE_LWP;
 
@@ -467,7 +569,7 @@ sub api_lwp {
             $args->{write_file}->print($buf);
         };
     }
-    if ($args->{content}) {
+    if ($args->{content} && (ref $args->{content} eq 'GLOB') || UNIVERSAL::isa($args->{content}, 'File::Temp')) {
         my $buf;
         my $content = delete $args->{content};
         $args->{content} = sub {
@@ -484,12 +586,23 @@ sub api_lwp {
         $assert->(defined(my $end_pos = tell($content)), 'tell');
         $assert->(seek($content, $cur_pos, SEEK_SET),    'seek');
         my $content_length = $end_pos - $cur_pos;
+        warn $content_length;
         push @$headers, 'Content-Length' => $content_length;
     }
     if ($args->{headers}) {
         push @$headers, @{ $args->{headers} };
     }
-    my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
+    my $req;
+    if ($args->{content} && ref $args->{content} eq 'HASH') {
+        $req = HTTP::Request::Common::request_type_with_data(
+            $args->{method},
+            $args->{url},
+            @$headers,
+            Content => $args->{content}
+        );
+    } else {
+        $req = HTTP::Request->new($args->{method}, $args->{url}, $args->{headers}, $args->{content});
+    }
     my $ua = LWP::UserAgent->new;
     $ua->timeout($self->timeout);
     $ua->env_proxy if $self->{env_proxy};
@@ -501,6 +614,7 @@ sub api_lwp {
         $self->error(parse_error($res->decoded_content));
     }
     if (my $result = $res->header('dropbox-api-result')) {
+        warn $result;
         return $result;
     }
     return $res->decoded_content;
@@ -510,48 +624,10 @@ sub api_json {
     my ($self, $args) = @_;
 
     my $body = $self->api($args) or return;
+    warn $body;
     return if $self->error;
-    return $body if $self->no_decode_json;
+    return $body if $self->no_decode_json || $body eq 'null';
     return decode_json($body);
-}
-
-sub oauth_request_url {
-    my ($self, $args) = @_;
-
-    Carp::croak("missing url.") unless $args->{url};
-    Carp::croak("missing method.") unless $args->{method};
-
-    # my ($type, $token, $token_secret);
-    # if ($args->{url} eq $request_token_url) {
-    #     $type = 'request token';
-    # } elsif ($args->{url} eq $access_token_url) {
-    #     Carp::croak("missing request_token.") unless $self->request_token;
-    #     Carp::croak("missing request_secret.") unless $self->request_secret;
-    #     $type = 'access token';
-    #     $token = $self->request_token;
-    #     $token_secret = $self->request_secret;
-    # } else {
-    #     Carp::croak("missing access_token, please `\$dropbox->auth;`.") unless $self->access_token;
-    #     Carp::croak("missing access_secret, please `\$dropbox->auth;`.") unless $self->access_secret;
-    #     $type = 'protected resource';
-    #     $token = $self->access_token;
-    #     $token_secret = $self->access_secret;
-    # }
-
-    # my $request = Net::OAuth->request($type)->new(
-    #     consumer_key => $self->key,
-    #     consumer_secret => $self->secret,
-    #     request_url => $args->{url},
-    #     request_method => uc($args->{method}),
-    #     signature_method => 'PLAINTEXT', # HMAC-SHA1 can't delete %20.txt bug...
-    #     timestamp => time,
-    #     nonce => $self->nonce,
-    #     token => $token,
-    #     token_secret => $token_secret,
-    #     extra_params => $args->{extra_params},
-    # );
-    # $request->sign;
-    # $request->to_url;
 }
 
 sub furl {
@@ -568,31 +644,6 @@ sub furl {
     $self->{furl};
 }
 
-sub url {
-    my ($self, $base, $path, $params) = @_;
-    my $url = URI->new($base . uri_escape_utf8($self->path($path), q{^a-zA-Z0-9_.~/-}));
-    $url->query_form($params) if $params;
-    $url->as_string;
-}
-
-sub path {
-    my ($self, $path) = @_;
-    return '' unless defined $path;
-    return '' unless length $path;
-    $path =~ s|^/||;
-    return '/' . $path;
-}
-
-sub nonce {
-    my $length = 16;
-    my @chars = ( 'A'..'Z', 'a'..'z', '0'..'9' );
-    my $ret;
-    for (1..$length) {
-        $ret .= $chars[int rand @chars];
-    }
-    return $ret;
-}
-
 sub mk_accessors {
     my $package = shift;
     no strict 'refs';
@@ -605,9 +656,6 @@ sub mk_accessors {
 }
 
 sub env_proxy { $_[0]->{env_proxy} = defined $_[1] ? $_[1] : 1 }
-
-# Backward Compatibility
-sub lwp_env_proxy { shift->env_proxy(@_) }
 
 1;
 __END__

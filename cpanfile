@@ -9,6 +9,7 @@ requires 'LWP::Protocol::https', '6.04';
 # Modern http client.
 recommends 'Furl', '2.19';
 recommends 'IO::Socket::SSL', '1.954';
+recommends 'JSON::XS', '3.02';
 
 # Module required for license otherwise Perl_5 license.
 recommends 'Software::License';
