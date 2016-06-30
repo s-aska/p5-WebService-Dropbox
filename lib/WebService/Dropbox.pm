@@ -4,24 +4,22 @@ use warnings;
 use Carp ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK SEEK_SET SEEK_END);
 use JSON;
-use Net::OAuth;
 use URI;
 use URI::Escape;
 
-our $VERSION = '1.22';
+our $VERSION = '2.00';
 
-my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
-my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
-my $authorize_url = 'https://www.dropbox.com/1/oauth/authorize';
+my $authorize_url = 'https://www.dropbox.com/oauth2/authorize';
+my $token_url = 'https://api.dropboxapi.com/oauth2/token';
 
 __PACKAGE__->mk_accessors(qw/
     key
     secret
-    request_token
-    request_secret
     access_token
     access_secret
     root
+
+    account_id
 
     no_decode_json
     error
@@ -54,8 +52,6 @@ sub new {
     bless {
         key            => $args->{key}            || '',
         secret         => $args->{secret}         || '',
-        request_token  => $args->{request_token}  || '',
-        request_secret => $args->{request_secret} || '',
         access_token   => $args->{access_token}   || '',
         access_secret  => $args->{access_secret}  || '',
         root           => $args->{root}           || 'dropbox',
@@ -66,47 +62,57 @@ sub new {
     }, $class;
 }
 
+# See https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize
 sub login {
-    my ($self, $callback_url) = @_;
+    my ($self, $redirect_uri, %args) = @_;
 
-    my $body = $self->api({
-        method => 'POST',
-        url  => $request_token_url
-    }) or return;
+    $args{response_type} //= 'code';
 
-    my $response = Net::OAuth->response('request token')->from_post_body($body);
-    $self->request_token($response->token);
-    $self->request_secret($response->token_secret);
+    if ($redirect_uri) {
+        $args{redirect_uri} = $redirect_uri;
+    }
 
     my $url = URI->new($authorize_url);
     $url->query_form(
-        oauth_token => $response->token,
-        oauth_callback => $callback_url
+        client_id => $self->key,
+        %args,
     );
     $url->as_string;
 }
 
+# See https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize
 sub auth {
-    my $self = shift;
+    my ($self, $code, $redirect_uri) = @_;
 
-    my $body = $self->api({
+    my $data = $self->api_json({
         method => 'POST',
-        url  => $access_token_url
+        url => $token_url,
+        content => {
+            client_id     => $self->key,
+            client_secret => $self->secret,
+            grant_type    => 'authorization_code',
+            code          => $code,
+            ( $redirect_uri ? ( redirect_uri => $redirect_uri ) : () ),
+        },
     }) or return;
 
-    my $response = Net::OAuth->response('access token')->from_post_body($body);
-    $self->access_token($response->token);
-    $self->access_secret($response->token_secret);
+    $self->access_token($data->{access_token});
+    $self->account_id($data->{account_id});
 }
 
+# See https://www.dropbox.com/developers/documentation/http/documentation#users-get_current_account
 sub account_info {
-    my $self = shift;
+    my ($self, $account_id) = @_;
+
+    $account_id //= $self->account_id;
 
     $self->api_json({
-        url => 'https://api.dropbox.com/1/account/info'
+        method => 'POST',
+        url => 'https://api.dropboxapi.com/2/users/get_current_account',
     });
 }
 
+# See https://www.dropbox.com/developers/documentation/http/documentation#files-download
 sub files {
     my ($self, $path, $output, $params, $opts) = @_;
 
@@ -122,14 +128,16 @@ sub files {
             unless $opts->{write_file};
         binmode $opts->{write_file};
     }
-    $self->api({
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
-        extra_params => $params,
+    my $res = $self->api_json({
+        url => 'https://content.dropboxapi.com/2/files/download',
+        headers => [
+            'Dropbox-API-Arg' => encode_json({ path => $path }),
+        ],
         %$opts
     });
 
     return if $self->error;
-    return 1;
+    return $res;
 }
 
 sub files_put {
@@ -400,7 +408,15 @@ sub api {
     my ($self, $args) = @_;
 
     $args->{method} ||= 'GET';
-    $args->{url} = $self->oauth_request_url($args);
+
+    if ($self->access_token) {
+        my @header = ('Authorization', 'Bearer ' . $self->access_token);
+        if ($args->{headers}) {
+            push @{ $args->{headers} }, @header;
+        } else {
+            $args->{headers} = [@header];
+        }
+    }
 
     $self->request_url($args->{url});
     $self->request_method($args->{method});
@@ -431,6 +447,11 @@ sub api {
         return;
     } else {
         $self->error(undef);
+    }
+
+    my %headers = @$headers;
+    if ($headers{'dropbox-api-result'}) {
+        return $headers{'dropbox-api-result'};
     }
 
     return $body;
@@ -479,6 +500,9 @@ sub api_lwp {
     } else {
         $self->error(parse_error($res->decoded_content));
     }
+    if (my $result = $res->header('dropbox-api-result')) {
+        return $result;
+    }
     return $res->decoded_content;
 }
 
@@ -497,37 +521,37 @@ sub oauth_request_url {
     Carp::croak("missing url.") unless $args->{url};
     Carp::croak("missing method.") unless $args->{method};
 
-    my ($type, $token, $token_secret);
-    if ($args->{url} eq $request_token_url) {
-        $type = 'request token';
-    } elsif ($args->{url} eq $access_token_url) {
-        Carp::croak("missing request_token.") unless $self->request_token;
-        Carp::croak("missing request_secret.") unless $self->request_secret;
-        $type = 'access token';
-        $token = $self->request_token;
-        $token_secret = $self->request_secret;
-    } else {
-        Carp::croak("missing access_token, please `\$dropbox->auth;`.") unless $self->access_token;
-        Carp::croak("missing access_secret, please `\$dropbox->auth;`.") unless $self->access_secret;
-        $type = 'protected resource';
-        $token = $self->access_token;
-        $token_secret = $self->access_secret;
-    }
+    # my ($type, $token, $token_secret);
+    # if ($args->{url} eq $request_token_url) {
+    #     $type = 'request token';
+    # } elsif ($args->{url} eq $access_token_url) {
+    #     Carp::croak("missing request_token.") unless $self->request_token;
+    #     Carp::croak("missing request_secret.") unless $self->request_secret;
+    #     $type = 'access token';
+    #     $token = $self->request_token;
+    #     $token_secret = $self->request_secret;
+    # } else {
+    #     Carp::croak("missing access_token, please `\$dropbox->auth;`.") unless $self->access_token;
+    #     Carp::croak("missing access_secret, please `\$dropbox->auth;`.") unless $self->access_secret;
+    #     $type = 'protected resource';
+    #     $token = $self->access_token;
+    #     $token_secret = $self->access_secret;
+    # }
 
-    my $request = Net::OAuth->request($type)->new(
-        consumer_key => $self->key,
-        consumer_secret => $self->secret,
-        request_url => $args->{url},
-        request_method => uc($args->{method}),
-        signature_method => 'PLAINTEXT', # HMAC-SHA1 can't delete %20.txt bug...
-        timestamp => time,
-        nonce => $self->nonce,
-        token => $token,
-        token_secret => $token_secret,
-        extra_params => $args->{extra_params},
-    );
-    $request->sign;
-    $request->to_url;
+    # my $request = Net::OAuth->request($type)->new(
+    #     consumer_key => $self->key,
+    #     consumer_secret => $self->secret,
+    #     request_url => $args->{url},
+    #     request_method => uc($args->{method}),
+    #     signature_method => 'PLAINTEXT', # HMAC-SHA1 can't delete %20.txt bug...
+    #     timestamp => time,
+    #     nonce => $self->nonce,
+    #     token => $token,
+    #     token_secret => $token_secret,
+    #     extra_params => $args->{extra_params},
+    # );
+    # $request->sign;
+    # $request->to_url;
 }
 
 sub furl {

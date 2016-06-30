@@ -1,7 +1,6 @@
 requires 'perl', '5.008001';
 
 requires 'JSON', '2.59';
-requires 'Net::OAuth', '0.28';
 requires 'URI', '1.60';
 requires 'HTTP::Message', '6.06';
 requires 'LWP::UserAgent', '6.05';
