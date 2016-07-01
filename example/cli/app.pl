@@ -9,39 +9,45 @@ my $box = WebService::Dropbox->new({
     secret => $secret,
 });
 
-$box->debug;
+# $box->debug;
+$box->verbose;
 
 if ($access_token) {
     $box->access_token($access_token);
 } else {
-    my $url = $box->login;
+    my $url = $box->authorize;
 
     print $url, "\n";
     print "Please Input Code: ";
 
     chomp( my $code = <STDIN> );
 
-    unless ($box->auth($code)) {
+    unless ($box->token($code)) {
         die $box->error;
     }
 }
 
-my $res = $box->account_info;
-unless ($res) {
-    die $box->error;
-}
-
-use Data::Dumper;
-warn Dumper($res);
 
 {
-    my $res = $box->files('/aerith.json', './aerith.json');
-    warn Dumper($res);
+    my $res = $box->get_current_account;
+    my $account_id = $res->{account_id};
+    $box->get_account($account_id);
+    $box->get_account_batch([ $account_id ]);
+    $box->get_space_usage;
+}
+
+# use Data::Dumper;
+# warn Dumper($res);
+
+{
+    my $res = $box->download('/aerith.json', './aerith.json');
+    # warn Dumper($res);
 }
 
 {
     open(my $fh, '<', './aerith.json');
-    my $res = $box->files_put_chunked('/aerith-test.json', $fh, { commit => { mode => 'overwrite' } }, undef, 10000);
-    warn Dumper($res);
+    $box->debug;
+    my $res = $box->upload_session('aerith-test.json', $fh, { mode => 'overwrite' }, 20000);
+    # warn Dumper($res);
 }
 
