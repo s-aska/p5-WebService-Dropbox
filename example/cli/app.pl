@@ -31,7 +31,7 @@ if ($access_token) {
     print "Get AccessToken: ", $box->access_token, "\n";
 }
 
-# my $res = $box->revoke;
+my $res = $box->search('/Photos', '39.jpg');
 
 # use Data::Dumper;
 # warn Dumper($res);
@@ -60,11 +60,11 @@ if ($access_token) {
 #     # warn Dumper($res);
 # }
 
-{
-    open(my $fh, '>', './hoge.pdf');
-    # $box->debug;
-    my $res = $box->get_preview('/work/recruit/職務経歴書.doc', $fh);
-    my $ct = $box->res->header('Content-Type');
-    warn $ct;
-    # warn Dumper($res);
-}
+# {
+#     open(my $fh, '>', './hoge.pdf');
+#     # $box->debug;
+#     my $res = $box->get_preview('/work/recruit/職務経歴書.doc', $fh);
+#     my $ct = $box->res->header('Content-Type');
+#     warn $ct;
+#     # warn Dumper($res);
+# }

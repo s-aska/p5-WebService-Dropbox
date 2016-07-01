@@ -278,7 +278,7 @@ sub api {
     # RPC endpoints
     # * PARAMETERS in to Request Body (application/json)
     # * RETURNS in to Response Body (application/json)
-    elsif ($args->{url} =~ qr{ \A https://api.dropboxapi.com }xms) {
+    elsif ($args->{url} =~ qr{ \A https://(?:api|notify).dropboxapi.com }xms) {
         if ($params) {
             push @{ $args->{headers} }, 'Content-Type', 'application/json';
             $args->{content} = $JSON->encode($params);
