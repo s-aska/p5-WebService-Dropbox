@@ -8,35 +8,40 @@ use File::Basename qw(dirname);
 use File::Spec;
 use WebService::Dropbox;
 
-if (!$ENV{'DROPBOX_APP_KEY'} or !$ENV{'DROPBOX_APP_SECRET'}) {
+if (!$ENV{'DROPBOX_APP_KEY'} or !$ENV{'DROPBOX_APP_SECRET'} or !$ENV{'DROPBOX_ACCESS_TOKEN'}) {
     plan skip_all => 'missing App Key or App Secret';
 }
 
 my $dropbox = WebService::Dropbox->new({
     key => $ENV{'DROPBOX_APP_KEY'},
     secret => $ENV{'DROPBOX_APP_SECRET'},
+    access_token => $ENV{'DROPBOX_ACCESS_TOKEN'},
     env_proxy => 1,
 });
 
-if (!$ENV{'DROPBOX_ACCESS_TOKEN'} or !$ENV{'DROPBOX_ACCESS_SECRET'}) {
-    my $url = $dropbox->login or die $dropbox->error;
-    warn "Please Access URL and press Enter: $url";
-    <STDIN>;
-    $dropbox->auth or die $dropbox->error;
-    warn "access_token: " . $dropbox->access_token;
-    warn "access_secret: " . $dropbox->access_secret;
-} else {
-    $dropbox->access_token($ENV{'DROPBOX_ACCESS_TOKEN'});
-    $dropbox->access_secret($ENV{'DROPBOX_ACCESS_SECRET'});
-}
+$dropbox->debug;
+$dropbox->verbose;
 
-$dropbox->account_info or die $dropbox->error;
+$dropbox->get_current_account or die $dropbox->error;
 
-my $exists = $dropbox->metadata('make_test_folder');
+my $fh_put = File::Temp->new;
+$fh_put->print('test.test.test.');
+$fh_put->flush;
+$fh_put->seek(0, 0);
+$dropbox->upload('/304.dat', $fh_put) or die $dropbox->error;
+$fh_put->close;
 
-my $exists2 = $dropbox->metadata('make_test_folder', { hash => $exists->{hash} });
+my $fh_get = File::Temp->new;
+$dropbox->download('/304.dat', $fh_get);
 
-ok !$exists2;
-is $dropbox->code, 304;
+is $dropbox->res->code, 200;
+
+my $etag = $dropbox->res->header('ETag');
+
+$dropbox->download('/304.dat', $fh_get, { headers => ['If-None-Match', $etag] });
+
+is $dropbox->res->code, 304;
+
+$dropbox->delete('/304.dat');
 
 done_testing();

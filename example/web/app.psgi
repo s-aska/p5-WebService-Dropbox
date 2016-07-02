@@ -1,17 +1,20 @@
+use strict;
+use warnings;
 use Amon2::Lite;
 use WebService::Dropbox;
-use JSON;
 
-my $key    = $ENV{DROPBOX_APP_KEY};
+__PACKAGE__->load_plugins('Web::JSON');
+
+my $key = $ENV{DROPBOX_APP_KEY};
 my $secret = $ENV{DROPBOX_APP_SECRET};
-my $box    = WebService::Dropbox->new({ key => $key, secret => $secret });
+my $dropbox = WebService::Dropbox->new({ key => $key, secret => $secret });
 
 my $redirect_uri = 'http://localhost:5000/callback';
 
 get '/' => sub {
     my ($c) = @_;
 
-    my $url = $box->login($redirect_uri);
+    my $url = $dropbox->authorize({ redirect_uri => $redirect_uri });
 
     return $c->redirect($url);
 };
@@ -21,11 +24,11 @@ get '/callback' => sub {
 
     my $code = $c->req->param('code');
 
-    $box->auth($code, $redirect_uri);
+    my $token = $dropbox->token($code, $redirect_uri);
 
-    my $res = $box->account_info || { error => $box->error };
+    my $account = $dropbox->get_current_account || { error => $dropbox->error };
 
-    return $c->render('index.tt', { res => encode_json($res) });
+    return $c->render_json({ token => $token, account => $account });
 };
 
 __PACKAGE__->to_app();

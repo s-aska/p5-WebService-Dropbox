@@ -1,13 +1,14 @@
 use strict;
+use warnings;
 
 use WebService::Dropbox;
 
-my $key          = $ENV{DROPBOX_APP_KEY};
-my $secret       = $ENV{DROPBOX_APP_SECRET};
+my $key = $ENV{DROPBOX_APP_KEY};
+my $secret = $ENV{DROPBOX_APP_SECRET};
 my $access_token = $ENV{DROPBOX_ACCESS_TOKEN};
 
 my $box = WebService::Dropbox->new({
-    key    => $key,
+    key => $key,
     secret => $secret,
 });
 
@@ -19,7 +20,7 @@ if ($access_token) {
 } else {
     my $url = $box->authorize;
 
-    print $url, "\n";
+    print "Please Access URL and press Enter: $url\n";
     print "Please Input Code: ";
 
     chomp( my $code = <STDIN> );
@@ -28,7 +29,7 @@ if ($access_token) {
         die $box->error;
     }
 
-    print "Get AccessToken: ", $box->access_token, "\n";
+    print "Successfully authorized.\nYour AccessToken: ", $box->access_token, "\n";
 }
 
 my $res = $box->search('/Photos', '39.jpg');
