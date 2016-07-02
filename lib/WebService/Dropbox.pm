@@ -93,7 +93,7 @@ sub api {
 
     $args->{headers} //= [];
 
-    if ($self->access_token) {
+    if ($self->access_token && $args->{url} ne 'https://notify.dropboxapi.com/2/files/list_folder/longpoll') {
         push @{ $args->{headers} }, 'Authorization', 'Bearer ' . $self->access_token;
     }
 
