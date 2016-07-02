@@ -36,3 +36,7 @@ carton exec -- prove -I lib t
 
 ## Release
 
+```sh
+$EDITOR ~/.pause
+minil release --no-test
+```
