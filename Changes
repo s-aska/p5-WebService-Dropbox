@@ -1,6 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+
+2.01 2016-07-02T19:06:18Z
         - Fix document format
 
 2.00 2016-07-02T17:14:48Z
