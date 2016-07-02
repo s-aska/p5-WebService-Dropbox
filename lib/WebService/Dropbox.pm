@@ -8,7 +8,10 @@ use URI;
 use File::Temp;
 use WebService::Dropbox::Auth;
 use WebService::Dropbox::Files;
+use WebService::Dropbox::Files::CopyReference;
+use WebService::Dropbox::Files::ListFolder;
 use WebService::Dropbox::Files::UploadSession;
+# use WebService::Dropbox::Sharing;
 use WebService::Dropbox::Users;
 
 our $VERSION = '2.00';
@@ -28,7 +31,7 @@ $WebService::Dropbox::USE_LWP = 0;
 $WebService::Dropbox::DEBUG = 0;
 $WebService::Dropbox::VERBOSE = 0;
 
-my $JSON = JSON->new;
+my $JSON = JSON->new->ascii;
 my $JSON_PRETTY = JSON->new->pretty->utf8->canonical;
 
 sub import {
@@ -75,169 +78,6 @@ sub new {
     }, $class;
 }
 
-
-
-
-
-
-
-
-# sub metadata {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/metadata/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub delta {
-#     my ($self, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/delta', ''),
-#         extra_params => $params
-#     });
-# }
-
-# sub revisions {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/revisions/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub restore {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/restore/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub search {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/search/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub shares {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/shares/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub media {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/media/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub copy_ref {
-#     my ($self, $path, $params) = @_;
-
-#     $self->api({
-#         method => 'GET',
-#         url => $self->url('https://api.dropbox.com/1/copy_ref/' . $self->root, $path),
-#         extra_params => $params
-#     });
-# }
-
-# sub thumbnails {
-#     my ($self, $path, $output, $params, $opts) = @_;
-
-#     $opts ||= {};
-#     if (ref $output eq 'CODE') {
-#         $opts->{write_code} = $output; # code ref
-#     } elsif (ref $output) {
-#         $opts->{write_file} = $output; # file handle
-#         binmode $opts->{write_file};
-#     } else {
-#         open $opts->{write_file}, '>', $output; # file path
-#         Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
-#             unless $opts->{write_file};
-#         binmode $opts->{write_file};
-#     }
-#     $opts->{extra_params} = $params if $params;
-#     $self->api({
-#         url => $self->url('https://api-content.dropbox.com/1/thumbnails/' . $self->root, $path),
-#         extra_params => $params,
-#         %$opts,
-#     });
-#     return if $self->error;
-#     return 1;
-# }
-
-# sub create_folder {
-#     my ($self, $path, $params) = @_;
-
-#     $params ||= {};
-#     $params->{root} ||= $self->root;
-#     $params->{path} = $self->path($path);
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/fileops/create_folder', ''),
-#         extra_params => $params
-#     });
-# }
-
-# sub copy {
-#     my ($self, $from, $to_path, $params) = @_;
-
-#     $params ||= {};
-#     $params->{root} ||= $self->root;
-#     $params->{to_path} = $self->path($to_path);
-#     if (ref $from) {
-#         $params->{from_copy_ref} = $from->{copy_ref};
-#     } else {
-#         $params->{from_path} = $self->path($from);
-#     }
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/fileops/copy', ''),
-#         extra_params => $params
-#     });
-# }
-
-# sub move {
-#     my ($self, $from_path, $to_path, $params) = @_;
-
-#     $params ||= {};
-#     $params->{root} ||= $self->root;
-#     $params->{from_path} = $self->path($from_path);
-#     $params->{to_path}   = $self->path($to_path);
-
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/fileops/move', ''),
-#         extra_params => $params
-#     });
-# }
-
-# sub delete {
-#     my ($self, $path, $params) = @_;
-
-#     $params ||= {};
-#     $params->{root} ||= $self->root;
-#     $params->{path} ||= $self->path($path);
-#     $self->api({
-#         url => $self->url('https://api.dropbox.com/1/fileops/delete', ''),
-#         extra_params => $params
-#     });
-# }
-
-
 sub api {
     my ($self, $args) = @_;
 
@@ -259,7 +99,7 @@ sub api {
     # Always HTTP POST. https://www.dropbox.com/developers/documentation/http/documentation#formats
     $args->{method}  = 'POST';
 
-    $args->{headers} = [];
+    $args->{headers} //= [];
 
     if ($self->access_token) {
         push @{ $args->{headers} }, 'Authorization', 'Bearer ' . $self->access_token;

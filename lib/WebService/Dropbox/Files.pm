@@ -53,12 +53,13 @@ sub delete {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#files-download
 sub download {
-    my ($self, $path, $output) = @_;
+    my ($self, $path, $output, $opts) = @_;
 
     $self->api({
         url => 'https://content.dropboxapi.com/2/files/download',
         params => { path => $path },
         output => $output,
+        %{ $opts // +{} },
     });
 }
 
@@ -79,7 +80,7 @@ sub get_metadata {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#files-get_preview
 sub get_preview {
-    my ($self, $path, $output) = @_;
+    my ($self, $path, $output, $opts) = @_;
 
     my $params = {
         path => $path,
@@ -89,6 +90,7 @@ sub get_preview {
         url => 'https://content.dropboxapi.com/2/files/get_preview',
         params => $params,
         output => $output,
+        %{ $opts // +{} },
     });
 }
 
@@ -108,7 +110,7 @@ sub get_temporary_link {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#files-get_thumbnail
 sub get_thumbnail {
-    my ($self, $path, $output, $optional_params) = @_;
+    my ($self, $path, $output, $optional_params, $opts) = @_;
 
     my $params = {
         path => $path,
@@ -119,6 +121,7 @@ sub get_thumbnail {
         url => 'https://content.dropboxapi.com/2/files/get_thumbnail',
         params => $params,
         output => $output,
+        %{ $opts // +{} },
     });
 }
 
