@@ -75,7 +75,7 @@
          "web" : "https://github.com/s-aska/p5-WebService-Dropbox"
       }
    },
-   "version" : "2.00",
+   "version" : "2.01",
    "x_authority" : "cpan:ASKADNA",
    "x_contributors" : [
       "Fuji, Goro <g.psy.va@gmail.com>",
