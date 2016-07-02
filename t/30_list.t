@@ -22,26 +22,24 @@ my $dropbox = WebService::Dropbox->new({
 $dropbox->debug;
 $dropbox->verbose;
 
-$dropbox->get_current_account or die $dropbox->error;
+$dropbox->list_folder('/work', {
+	recursive => JSON::true,
+});
 
-my $fh_put = File::Temp->new;
-$fh_put->print('test.test.test.');
-$fh_put->flush;
-$fh_put->seek(0, 0);
-$dropbox->upload('/304.dat', $fh_put) or die $dropbox->error;
-$fh_put->close;
-
-my $fh_get = File::Temp->new;
-$dropbox->download('/304.dat', $fh_get);
+my $get_latest_cursor = $dropbox->list_folder_get_latest_cursor('/work', {
+	recursive => JSON::true,
+});
 
 is $dropbox->res->code, 200;
 
-my $etag = $dropbox->res->header('ETag');
+# $dropbox->list_folder_continue($get_latest_cursor->{cursor});
 
-$dropbox->download('/304.dat', $fh_get, { headers => ['If-None-Match', $etag] });
+# is $dropbox->res->code, 200;
 
-is $dropbox->res->code, 304;
+$dropbox->list_folder_longpoll($get_latest_cursor->{cursor}, {
+	timeout => 30
+});
 
-$dropbox->delete('/304.dat');
+is $dropbox->res->code, 200;
 
 done_testing();

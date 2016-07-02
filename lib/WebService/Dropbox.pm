@@ -4,38 +4,39 @@ use warnings;
 use Carp ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK SEEK_SET SEEK_END);
 use JSON;
-use Net::OAuth;
 use URI;
-use URI::Escape;
+use File::Temp;
+use WebService::Dropbox::Auth;
+use WebService::Dropbox::Files;
+use WebService::Dropbox::Files::CopyReference;
+use WebService::Dropbox::Files::ListFolder;
+use WebService::Dropbox::Files::UploadSession;
+# use WebService::Dropbox::Sharing; comming soon...
+use WebService::Dropbox::Users;
 
-our $VERSION = '1.22';
-
-my $request_token_url = 'https://api.dropbox.com/1/oauth/request_token';
-my $access_token_url = 'https://api.dropbox.com/1/oauth/access_token';
-my $authorize_url = 'https://www.dropbox.com/1/oauth/authorize';
+our $VERSION = '2.00';
 
 __PACKAGE__->mk_accessors(qw/
+    timeout
     key
     secret
-    request_token
-    request_secret
     access_token
-    access_secret
-    root
 
-    no_decode_json
     error
-    code
-    request_url
-    request_method
-    timeout
+    req
+    res
 /);
 
 $WebService::Dropbox::USE_LWP = 0;
+$WebService::Dropbox::DEBUG = 0;
+$WebService::Dropbox::VERBOSE = 0;
+
+my $JSON = JSON->new->ascii;
+my $JSON_PRETTY = JSON->new->pretty->utf8->canonical;
 
 sub import {
     eval {
-        require Furl::HTTP;
+        require Furl;
         require IO::Socket::SSL;
     };if ($@) {
         __PACKAGE__->use_lwp;
@@ -45,408 +46,177 @@ sub import {
 sub use_lwp {
     require LWP::UserAgent;
     require HTTP::Request;
+    require HTTP::Request::Common;
     $WebService::Dropbox::USE_LWP++;
+}
+
+sub debug {
+    $WebService::Dropbox::DEBUG = defined $_[0] ? $_[0] : 1;
+}
+
+sub verbose {
+    $WebService::Dropbox::VERBOSE = defined $_[0] ? $_[0] : 1;
 }
 
 sub new {
     my ($class, $args) = @_;
 
     bless {
-        key            => $args->{key}            || '',
-        secret         => $args->{secret}         || '',
-        request_token  => $args->{request_token}  || '',
-        request_secret => $args->{request_secret} || '',
-        access_token   => $args->{access_token}   || '',
-        access_secret  => $args->{access_secret}  || '',
-        root           => $args->{root}           || 'dropbox',
-        timeout        => $args->{timeout}        || (60 * 60 * 24),
-        no_decode_json => $args->{no_decode_json} || 0,
-        no_uri_escape  => $args->{no_uri_escape}  || 0,
-        env_proxy      => $args->{lwp_env_proxy}  || $args->{env_proxy} || 0,
+        timeout      => $args->{timeout}        || 86400,
+        key          => $args->{key}            || '',
+        secret       => $args->{secret}         || '',
+        access_token => $args->{access_token}   || '',
+        env_proxy    => $args->{env_proxy}      || 0,
     }, $class;
-}
-
-sub login {
-    my ($self, $callback_url) = @_;
-
-    my $body = $self->api({
-        method => 'POST',
-        url  => $request_token_url
-    }) or return;
-
-    my $response = Net::OAuth->response('request token')->from_post_body($body);
-    $self->request_token($response->token);
-    $self->request_secret($response->token_secret);
-
-    my $url = URI->new($authorize_url);
-    $url->query_form(
-        oauth_token => $response->token,
-        oauth_callback => $callback_url
-    );
-    $url->as_string;
-}
-
-sub auth {
-    my $self = shift;
-
-    my $body = $self->api({
-        method => 'POST',
-        url  => $access_token_url
-    }) or return;
-
-    my $response = Net::OAuth->response('access token')->from_post_body($body);
-    $self->access_token($response->token);
-    $self->access_secret($response->token_secret);
-}
-
-sub account_info {
-    my $self = shift;
-
-    $self->api_json({
-        url => 'https://api.dropbox.com/1/account/info'
-    });
-}
-
-sub files {
-    my ($self, $path, $output, $params, $opts) = @_;
-
-    $opts ||= {};
-    if (ref $output eq 'CODE') {
-        $opts->{write_code} = $output; # code ref
-    } elsif (ref $output) {
-        $opts->{write_file} = $output; # file handle
-        binmode $opts->{write_file};
-    } else {
-        open $opts->{write_file}, '>', $output; # file path
-        Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
-            unless $opts->{write_file};
-        binmode $opts->{write_file};
-    }
-    $self->api({
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
-        extra_params => $params,
-        %$opts
-    });
-
-    return if $self->error;
-    return 1;
-}
-
-sub files_put {
-    my ($self, $path, $content, $params, $opts) = @_;
-
-    $opts ||= {};
-    $self->api_json({
-        method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/files_put/' . $self->root, $path),
-        content => $content,
-        extra_params => $params,
-        %$opts
-    });
-}
-
-sub files_post {
-    my ($self, $path, $content, $params, $opts) = @_;
-
-    $opts ||= {};
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/files/' . $self->root, $path),
-        content => $content,
-        extra_params => $params,
-        %$opts
-    });
-}
-
-sub files_put_chunked {
-    my ($self, $path, $content, $params, $opts, $limit) = @_;
-
-    $limit ||= 4 * 1024 * 1024; # A typical chunk is 4 MB
-
-    my $upload;
-    $upload = sub {
-        my $data = shift;
-        my $buf;
-        my $total = $limit;
-        my $chunk = 1024;
-        my $tmp = File::Temp->new;
-        while (my $read = read($content, $buf, $chunk)) {
-            $tmp->print($buf);
-            $total -= $read;
-            if ($chunk > $total) {
-                $chunk = $total;
-            }
-            last unless $chunk;
-        }
-
-        if ($total == $limit) {
-            $data->{upload_id} or die 'read error.';
-            return $self->commit_chunked_upload(
-                $path, {
-                    upload_id => $data->{upload_id},
-                    ( $params ? %$params : () )
-                }, $opts) || die $self->error;
-        }
-
-        $tmp->flush;
-        $tmp->seek(0, 0);
-        $data = $self->chunked_upload($tmp, {
-            ( $data   ? %$data   : () ),
-            ( $params ? %$params : () )
-        }, $opts) or die $self->error;
-        $upload->({
-            upload_id => $data->{upload_id},
-            offset    => $data->{offset}
-        });
-    };
-    $upload->();
-}
-
-sub chunked_upload {
-    my ($self, $content, $params, $opts) = @_;
-
-    $opts ||= {};
-    $self->api_json({
-        method => 'PUT',
-        url => $self->url('https://api-content.dropbox.com/1/chunked_upload', ''),
-        content => $content,
-        extra_params => $params,
-        %$opts
-    });
-}
-
-sub commit_chunked_upload {
-    my ($self, $path, $params, $opts) = @_;
-
-    $opts ||= {};
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api-content.dropbox.com/1/commit_chunked_upload/' . $self->root, $path),
-        extra_params => $params,
-        %$opts
-    });
-}
-
-sub metadata {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/metadata/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub delta {
-    my ($self, $params) = @_;
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/delta', ''),
-        extra_params => $params
-    });
-}
-
-sub revisions {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/revisions/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub restore {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/restore/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub search {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        url => $self->url('https://api.dropbox.com/1/search/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub shares {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/shares/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub media {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/media/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub copy_ref {
-    my ($self, $path, $params) = @_;
-
-    $self->api_json({
-        method => 'GET',
-        url => $self->url('https://api.dropbox.com/1/copy_ref/' . $self->root, $path),
-        extra_params => $params
-    });
-}
-
-sub thumbnails {
-    my ($self, $path, $output, $params, $opts) = @_;
-
-    $opts ||= {};
-    if (ref $output eq 'CODE') {
-        $opts->{write_code} = $output; # code ref
-    } elsif (ref $output) {
-        $opts->{write_file} = $output; # file handle
-        binmode $opts->{write_file};
-    } else {
-        open $opts->{write_file}, '>', $output; # file path
-        Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
-            unless $opts->{write_file};
-        binmode $opts->{write_file};
-    }
-    $opts->{extra_params} = $params if $params;
-    $self->api({
-        url => $self->url('https://api-content.dropbox.com/1/thumbnails/' . $self->root, $path),
-        extra_params => $params,
-        %$opts,
-    });
-    return if $self->error;
-    return 1;
-}
-
-sub create_folder {
-    my ($self, $path, $params) = @_;
-
-    $params ||= {};
-    $params->{root} ||= $self->root;
-    $params->{path} = $self->path($path);
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/create_folder', ''),
-        extra_params => $params
-    });
-}
-
-sub copy {
-    my ($self, $from, $to_path, $params) = @_;
-
-    $params ||= {};
-    $params->{root} ||= $self->root;
-    $params->{to_path} = $self->path($to_path);
-    if (ref $from) {
-        $params->{from_copy_ref} = $from->{copy_ref};
-    } else {
-        $params->{from_path} = $self->path($from);
-    }
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/copy', ''),
-        extra_params => $params
-    });
-}
-
-sub move {
-    my ($self, $from_path, $to_path, $params) = @_;
-
-    $params ||= {};
-    $params->{root} ||= $self->root;
-    $params->{from_path} = $self->path($from_path);
-    $params->{to_path}   = $self->path($to_path);
-
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/move', ''),
-        extra_params => $params
-    });
-}
-
-sub delete {
-    my ($self, $path, $params) = @_;
-
-    $params ||= {};
-    $params->{root} ||= $self->root;
-    $params->{path} ||= $self->path($path);
-    $self->api_json({
-        method => 'POST',
-        url => $self->url('https://api.dropbox.com/1/fileops/delete', ''),
-        extra_params => $params
-    });
-}
-
-# private
-
-sub parse_error ($) {
-    eval { decode_json($_[0])->{error} } || $_[0];
 }
 
 sub api {
     my ($self, $args) = @_;
 
-    $args->{method} ||= 'GET';
-    $args->{url} = $self->oauth_request_url($args);
-
-    $self->request_url($args->{url});
-    $self->request_method($args->{method});
-
-    return $self->api_lwp($args) if $WebService::Dropbox::USE_LWP;
-
-    if (my $write_file = delete $args->{write_file}) {
-        $args->{write_code} = sub {
-            $write_file->print($_[3]);
-        };
-    }
-    if (my $write_code = delete $args->{write_code}) {
-        $args->{write_code} = sub {
-            if ($_[0] =~ qr{ \A 2 }xms) {
-                $write_code->(@_);
-            } else {
-                $self->error(parse_error($_[3]));
-            }
-        };
+    # Content-download endpoints
+    if (my $output = delete $args->{output}) {
+        if (ref $output eq 'CODE') {
+            $args->{write_code} = $output; # code ref
+        } elsif (ref $output) {
+            $args->{write_file} = $output; # file handle
+            binmode $args->{write_file};
+        } else {
+            open $args->{write_file}, '>', $output; # file path
+            Carp::croak("invalid output, output must be code ref or filehandle or filepath.")
+                unless $args->{write_file};
+            binmode $args->{write_file};
+        }
     }
 
-    my ($minor_version, $code, $msg, $headers, $body) = $self->furl->request(%$args);
-    $self->code($code);
-    if ($code !~ qr{ \A 2 }xms) {
+    # Always HTTP POST. https://www.dropbox.com/developers/documentation/http/documentation#formats
+    $args->{method}  = 'POST';
+
+    $args->{headers} //= [];
+
+    if ($self->access_token && $args->{url} ne 'https://notify.dropboxapi.com/2/files/list_folder/longpoll') {
+        push @{ $args->{headers} }, 'Authorization', 'Bearer ' . $self->access_token;
+    }
+
+    # Set PARAMETERS
+    my $params = delete $args->{params};
+
+    # Token
+    # * PARAMETERS in to Request Body (application/x-www-form-urlencoded)
+    # * RETURNS in to Response Body (application/json)
+    if ($args->{url} eq 'https://api.dropboxapi.com/oauth2/token') {
+        $args->{content} = $params;
+    }
+
+    # RPC endpoints
+    # * PARAMETERS in to Request Body (application/json)
+    # * RETURNS in to Response Body (application/json)
+    elsif ($args->{url} =~ qr{ \A https://(?:api|notify).dropboxapi.com }xms) {
+        if ($params) {
+            push @{ $args->{headers} }, 'Content-Type', 'application/json';
+            $args->{content} = $JSON->encode($params);
+        }
+    }
+
+    # Content-upload endpoints or Content-download endpoints
+    # * PARAMETERS in to Dropbox-API-Arg (JSON Format)
+    # * RETURNS in to Dropbox-API-Result (JSON Format)
+    elsif ($args->{url} =~ qr{ \A https://content.dropboxapi.com }xms) {
+        if ($params) {
+            push @{ $args->{headers} }, 'Dropbox-API-Arg', $JSON->encode($params);
+        }
+        if ($args->{content}) {
+            push @{ $args->{headers} }, 'Content-Type', 'application/octet-stream';
+        }
+    }
+
+    my ($req, $res);
+    if ($WebService::Dropbox::USE_LWP) {
+        ($req, $res) = $self->api_lwp($args);
+    } else {
+        ($req, $res) = $self->api_furl($args);
+    }
+
+    $self->req($req);
+    $self->res($res);
+
+    my $is_success = $self->res->code =~ qr{ \A [23] }xms ? 1 : 0;
+
+    my $decoded_content = $res->decoded_content;
+
+    my $res_data;
+    my $res_json = $res->header('Dropbox-Api-Result');
+    if (!$res_json && $res->header('Content-Type') =~ qr{ \A (?:application/json|text/javascript) }xms) {
+        $res_json = $decoded_content;
+    }
+
+    if ($res_json && $res_json ne 'null') {
+        $res_data = $JSON->decode($res_json);
+    }
+
+    if ($WebService::Dropbox::DEBUG || !$is_success) {
+        my $level = $is_success ? 'DEBUG': 'ERROR';
+        my $color = $is_success ? "\e[32m" : "\e[31m";
+        my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
+        my $time = sprintf("%04d-%02d-%02dT%02d:%02d:%02d", $year + 1900, $mon + 1, $mday, $hour, $min, $sec);
+        if ($WebService::Dropbox::VERBOSE) {
+            warn sprintf(qq|%s [WebService::Dropbox] [%s] %s
+\e[90m%s %s %s
+%s
+%s\e[0m
+${color}%s %s\e[0m
+\e[90m%s
+%s\e[0m
+|,
+                $time,
+                $level,
+                $req->uri,
+                $req->method,
+                $req->uri->path,
+                $req->protocol // '',
+                $req->headers->as_string,
+                ( ref $args->{content} ? '' : $args->{content} && $params ? $JSON_PRETTY->encode($params) : '' ),
+                $res->protocol,
+                $res->status_line,
+                $res->headers->as_string,
+                ( $res_data ? $JSON_PRETTY->encode($res_data) : $decoded_content . "\n" ),
+            );
+        } else {
+            warn sprintf("%s [WebService::Dropbox] [%s] %s %s -> [%s] %s",
+                $time,
+                $level,
+                $req->uri,
+                ( $params ? $JSON->encode($params) : '-' ),
+                $res->code,
+                ( $res_json || $decoded_content ),
+            );
+        }
+    }
+
+    unless ($is_success) {
         unless ($self->error) {
-            $self->error($body || $msg);
+            $self->error($decoded_content);
         }
         return;
-    } else {
-        $self->error(undef);
     }
 
-    return $body;
+    $self->error(undef);
+
+    return $res_data // +{};
 }
 
 sub api_lwp {
     my ($self, $args) = @_;
 
-    my $headers = [];
+    my @headers = @{ $args->{headers} // +[] };
+
     if ($args->{write_file}) {
         $args->{write_code} = sub {
             my $buf = shift;
             $args->{write_file}->print($buf);
         };
     }
-    if ($args->{content}) {
+
+    if ($args->{content} && UNIVERSAL::can($args->{content}, 'read')) {
         my $buf;
         my $content = delete $args->{content};
         $args->{content} = sub {
@@ -463,77 +233,72 @@ sub api_lwp {
         $assert->(defined(my $end_pos = tell($content)), 'tell');
         $assert->(seek($content, $cur_pos, SEEK_SET),    'seek');
         my $content_length = $end_pos - $cur_pos;
-        push @$headers, 'Content-Length' => $content_length;
+        push @headers, 'Content-Length' => $content_length;
     }
-    if ($args->{headers}) {
-        push @$headers, @{ $args->{headers} };
+
+    my $req;
+    if ($args->{content} && ref $args->{content} eq 'HASH') {
+        # application/x-www-form-urlencoded
+        $req = HTTP::Request::Common::request_type_with_data(
+            $args->{method},
+            $args->{url},
+            @headers,
+            Content => $args->{content}
+        );
+    } else {
+        # application/json or application/octet-stream
+        # $args->{content} is encodeed json or file handle
+        $req = HTTP::Request->new(
+            $args->{method},
+            $args->{url},
+            \@headers,
+            $args->{content},
+        );
     }
-    my $req = HTTP::Request->new($args->{method}, $args->{url}, $headers, $args->{content});
+
+    $req->protocol('HTTP/1.1');
+
+    my $res = $self->ua->request($req, $args->{write_code});
+    ($req, $res);
+}
+
+sub api_furl {
+    my ($self, $args) = @_;
+
+    if (my $write_file = delete $args->{write_file}) {
+        $args->{write_code} = sub {
+            $write_file->print($_[3]);
+        };
+    }
+
+    if (my $write_code = delete $args->{write_code}) {
+        $args->{write_code} = sub {
+            if ($_[0] =~ qr{ \A 2 }xms) {
+                $write_code->(@_);
+            } else {
+                $self->error($_[3]);
+            }
+        };
+    }
+
+    my $res = $self->furl->request(%$args);
+    ($res->request, $res);
+}
+
+sub ua {
+    my $self = shift;
     my $ua = LWP::UserAgent->new;
     $ua->timeout($self->timeout);
-    $ua->env_proxy if $self->{env_proxy};
-    my $res = $ua->request($req, $args->{write_code});
-    $self->code($res->code);
-    if ($res->is_success) {
-        $self->error(undef);
-    } else {
-        $self->error(parse_error($res->decoded_content));
+    if ($self->{env_proxy}) {
+        $ua->env_proxy;
     }
-    return $res->decoded_content;
-}
-
-sub api_json {
-    my ($self, $args) = @_;
-
-    my $body = $self->api($args) or return;
-    return if $self->error;
-    return $body if $self->no_decode_json;
-    return decode_json($body);
-}
-
-sub oauth_request_url {
-    my ($self, $args) = @_;
-
-    Carp::croak("missing url.") unless $args->{url};
-    Carp::croak("missing method.") unless $args->{method};
-
-    my ($type, $token, $token_secret);
-    if ($args->{url} eq $request_token_url) {
-        $type = 'request token';
-    } elsif ($args->{url} eq $access_token_url) {
-        Carp::croak("missing request_token.") unless $self->request_token;
-        Carp::croak("missing request_secret.") unless $self->request_secret;
-        $type = 'access token';
-        $token = $self->request_token;
-        $token_secret = $self->request_secret;
-    } else {
-        Carp::croak("missing access_token, please `\$dropbox->auth;`.") unless $self->access_token;
-        Carp::croak("missing access_secret, please `\$dropbox->auth;`.") unless $self->access_secret;
-        $type = 'protected resource';
-        $token = $self->access_token;
-        $token_secret = $self->access_secret;
-    }
-
-    my $request = Net::OAuth->request($type)->new(
-        consumer_key => $self->key,
-        consumer_secret => $self->secret,
-        request_url => $args->{url},
-        request_method => uc($args->{method}),
-        signature_method => 'PLAINTEXT', # HMAC-SHA1 can't delete %20.txt bug...
-        timestamp => time,
-        nonce => $self->nonce,
-        token => $token,
-        token_secret => $token_secret,
-        extra_params => $args->{extra_params},
-    );
-    $request->sign;
-    $request->to_url;
+    $ua;
 }
 
 sub furl {
     my $self = shift;
     unless ($self->{furl}) {
-        $self->{furl} = Furl::HTTP->new(
+        $self->{furl} = Furl->new(
             timeout => $self->timeout,
             ssl_opts => {
                 SSL_verify_mode => IO::Socket::SSL::SSL_VERIFY_PEER(),
@@ -542,31 +307,6 @@ sub furl {
         $self->{furl}->env_proxy if $self->{env_proxy};
     }
     $self->{furl};
-}
-
-sub url {
-    my ($self, $base, $path, $params) = @_;
-    my $url = URI->new($base . uri_escape_utf8($self->path($path), q{^a-zA-Z0-9_.~/-}));
-    $url->query_form($params) if $params;
-    $url->as_string;
-}
-
-sub path {
-    my ($self, $path) = @_;
-    return '' unless defined $path;
-    return '' unless length $path;
-    $path =~ s|^/||;
-    return '/' . $path;
-}
-
-sub nonce {
-    my $length = 16;
-    my @chars = ( 'A'..'Z', 'a'..'z', '0'..'9' );
-    my $ret;
-    for (1..$length) {
-        $ret .= $chars[int rand @chars];
-    }
-    return $ret;
 }
 
 sub mk_accessors {
@@ -581,9 +321,6 @@ sub mk_accessors {
 }
 
 sub env_proxy { $_[0]->{env_proxy} = defined $_[1] ? $_[1] : 1 }
-
-# Backward Compatibility
-sub lwp_env_proxy { shift->env_proxy(@_) }
 
 1;
 __END__
@@ -601,289 +338,632 @@ WebService::Dropbox - Perl interface to Dropbox API
         secret => '...' # App Secret
     });
 
-    # get access token
-    if (!$access_token or !$access_secret) {
-        my $url = $dropbox->login or die $dropbox->error;
-        warn "Please Access URL and press Enter: $url";
-        <STDIN>;
-        $dropbox->auth or die $dropbox->error;
-        warn "access_token: " . $dropbox->access_token;
-        warn "access_secret: " . $dropbox->access_secret;
+    # Authorization
+    if ($access_token) {
+        $box->access_token($access_token);
     } else {
-        $dropbox->access_token($access_token);
-        $dropbox->access_secret($access_secret);
+        my $url = $box->authorize;
+
+        print "Please Access URL and press Enter: $url\n";
+        print "Please Input Code: ";
+
+        chomp( my $code = <STDIN> );
+
+        unless ($box->token($code)) {
+            die $box->error;
+        }
+
+        print "Successfully authorized.\nYour AccessToken: ", $box->access_token, "\n";
     }
 
-    my $info = $dropbox->account_info or die $dropbox->error;
+    my $info = $dropbox->get_current_account or die $dropbox->error;
 
     # download
-    # https://www.dropbox.com/developers/reference/api#files
-    my $fh_get = IO::File->new('some file', '>');
-    $dropbox->files('make_test_folder/test.txt', $fh_get) or die $dropbox->error;
+    # https://www.dropbox.com/developers/documentation/http/documentation#files-download
+    my $fh_download = IO::File->new('some file', '>');
+    $dropbox->download('/make_test_folder/test.txt', $fh_download) or die $dropbox->error;
     $fh_get->close;
 
     # upload
-    # https://www.dropbox.com/developers/reference/api#files_put
-    my $fh_put = IO::File->new('some file');
-    $dropbox->files_put('make_test_folder/test.txt', $fh_put) or die $dropbox->error;
-    $fh_put->close;
+    # https://www.dropbox.com/developers/documentation/http/documentation#files-upload
+    my $fh_upload = IO::File->new('some file');
+    $dropbox->upload('/make_test_folder/test.txt', $fh_upload) or die $dropbox->error;
+    $fh_upload->close;
 
-    # filelist(metadata)
-    # https://www.dropbox.com/developers/reference/api#metadata
-    my $data = $dropbox->metadata('folder_a');
+    # get_metadata
+    # https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+    my $data = $dropbox->get_metadata('/folder_a');
 
 =head1 DESCRIPTION
 
 WebService::Dropbox is Perl interface to Dropbox API
 
-- Support Dropbox v1 REST API
+- Support Dropbox v2 REST API
 
 - Support Furl (Fast!!!)
 
 - Streaming IO (Low Memory)
 
-- Default URI Escape (The specified path is utf8 decoded string)
-
 =head1 API
 
-=head2 login(callback_url) - get request token and request secret
+=head2 Auth
 
-    my $callback_url = '...'; # optional
-    my $url = $dropbox->login($callback_url) or die $dropbox->error;
-    warn "Please Access URL and press Enter: $url";
+L<https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize>
 
-=head2 auth - get access token and access secret
+=head3 for CLI Sample
 
-    $dropbox->auth or die $dropbox->error;
-    warn "access_token: " . $dropbox->access_token;
-    warn "access_secret: " . $dropbox->access_secret;
+    my $url = $dropbox->authorize;
 
-=head2 root - set access type
+    print "Please Access URL and press Enter: $url\n";
+    print "Please Input Code: ";
 
-    # Access Type is App folder
-    # Your app only needs access to a single folder within the user's Dropbox
-    $dropbox->root('sandbox');
+    chomp( my $code = <STDIN> );
 
-    # Access Type is Full Dropbox (default)
-    # Your app needs access to the user's entire Dropbox
-    $dropbox->root('dropbox');
+    unless ($dropbox->token($code)) {
+        die $dropbox->error;
+    }
 
-L<https://www.dropbox.com/developers/start/core>
+    print "Successfully authorized.\nYour AccessToken: ", $dropbox->access_token, "\n";
 
-=head2 account_info
+=head3 for Web Sample
 
-    my $info = $dropbox->account_info or die $dropbox->error;
+    use Amon2::Lite;
+    use WebService::Dropbox;
 
-    # {
-    #     "referral_link": "https://www.dropbox.com/referrals/r1a2n3d4m5s6t7",
-    #     "display_name": "John P. User",
-    #     "uid": 12345678,
-    #     "country": "US",
-    #     "quota_info": {
-    #         "shared": 253738410565,
-    #         "quota": 107374182400000,
-    #         "normal": 680031877871
-    #     },
-    #     "email": "john@example.com"
-    # }
+    __PACKAGE__->load_plugins('Web::JSON');
 
-L<https://www.dropbox.com/developers/reference/api#account-info>
+    my $key = $ENV{DROPBOX_APP_KEY};
+    my $secret = $ENV{DROPBOX_APP_SECRET};
+    my $dropbox = WebService::Dropbox->new({ key => $key, secret => $secret });
 
-=head2 files(path, output, [params, opts]) - download (no file list, file list is metadata)
+    my $redirect_uri = 'http://localhost:5000/callback';
 
-    # Current Rev
-    my $fh_get = IO::File->new('some file', '>');
-    $dropbox->files('folder/file.txt', $fh_get) or die $dropbox->error;
-    $fh_get->close;
+    get '/' => sub {
+        my ($c) = @_;
 
-    # Specified Rev
-    $dropbox->files('folder/file.txt', $fh_get, { rev => ... }) or die $dropbox->error;
+        my $url = $dropbox->authorize({ redirect_uri => $redirect_uri });
 
-    # Code ref
-    $dropbox->files('folder/file.txt', sub {
+        return $c->redirect($url);
+    };
+
+    get '/callback' => sub {
+        my ($c) = @_;
+
+        my $code = $c->req->param('code');
+
+        my $token = $dropbox->token($code, $redirect_uri);
+
+        my $account = $dropbox->get_current_account || { error => $dropbox->error };
+
+        return $c->render_json({ token => $token, account => $account });
+    };
+
+    __PACKAGE__->to_app();
+
+=head3 authorize(\%optional_params)
+
+    # for Simple CLI
+    my $url = $dropbox->authorize();
+
+    # for Other
+    my $url = $dropbox->authorize({
+        response_type => 'code', # code or token
+        redirect_uri => '',
+        state => '',
+        require_role => '',
+        force_reapprove => JSON::false,
+        disable_signup => JSON::false,
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize>
+
+=head3 token($code [, $redirect_uri])
+
+This endpoint only applies to apps using the authorization code flow. An app calls this endpoint to acquire a bearer token once the user has authorized the app.
+
+Calls to /oauth2/token need to be authenticated using the apps's key and secret. These can either be passed as POST parameters (see parameters below) or via HTTP basic authentication. If basic authentication is used, the app key should be provided as the username, and the app secret should be provided as the password.
+
+    # for CLI
+    my $token = $dropbox->token($code);
+
+    # for Web
+    my $token = $dropbox->token($code, $redirect_uri);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#oauth2-token>
+
+=head3 revoke
+
+Disables the access token used to authenticate the call.
+
+    $dropbox->revoke;
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#auth-token-revoke>
+
+=head2 Files
+
+=head3 copy($from_path, $to_path)
+
+Copy a file or folder to a different location in the user's Dropbox.
+If the source path is a folder all its contents will be copied.
+
+    $dropbox->copy($from_path, $to_path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-copy>
+
+=head3 copy_reference_get($path)
+
+Get a copy reference to a file or folder. This reference string can be used to save that file or folder to another user's Dropbox by passing it to copy_reference/save.
+
+    $dropbox->copy_reference_get($path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-copy_reference-get>
+
+=head3 copy_reference_save($copy_reference, $path)
+
+Save a copy reference returned by copy_reference/get to the user's Dropbox.
+
+    $dropbox->copy_reference_save($copy_reference, $path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-copy_reference-save>
+
+=head3 create_folder($path)
+
+Create a folder at a given path.
+
+    $dropbox->create_folder($path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-create_folder>
+
+=head3 delete($path)
+
+Delete the file or folder at a given path.
+
+If the path is a folder, all its contents will be deleted too.
+
+A successful response indicates that the file or folder was deleted. The returned metadata will be the corresponding FileMetadata or FolderMetadata for the item at time of deletion, and not a DeletedMetadata object.
+
+    $dropbox->delete($path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-delete>
+
+=head3 download($path, $output [, \%opts])
+
+Download a file from a user's Dropbox.
+
+    # File handle
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->download($path, $fh);
+
+    # Code reference
+    my $write_code = sub {
         # compatible with LWP::UserAgent and Furl::HTTP
         my $chunk = @_ == 4 ? @_[3] : $_[0];
         print $chunk;
-    }) or die $dropbox->error;
+    };
+    $dropbox->download($path, $write_code);
 
     # Range
-    $dropbox->files('folder/file.txt', $fh_get) or die $dropbox->error;
-    > "0123456789"
-    $dropbox->files('folder/file.txt', $fh_get, undef, { headers => ['Range' => 'bytes=5-6'] }) or die $dropbox->error;
-    > "56"
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->download($path, $fh, { headers => ['Range' => 'bytes=5-6'] });
 
-L<https://www.dropbox.com/developers/reference/api#files-GET>
+    # If-None-Match / ETag
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->download($path, $fh);
 
-=head2 files_put(path, input) - Uploads a files
+    # $dropbox->res->code => 200
 
-    my $fh_put = IO::File->new('some file');
-    $dropbox->files_put('folder/test.txt', $fh_put) or die $dropbox->error;
-    $fh_put->close;
+    my $etag = $dropbox->res->header('ETag');
 
-    # no overwrite (default true)
-    $dropbox->files_put('folder/test.txt', $fh_put, { overwrite => 0 }) or die $dropbox->error;
-    # create 'folder/test (1).txt'
+    $dropbox->download($path, $fh, { headers => ['If-None-Match', $etag] });
 
-    # Specified Parent Rev
-    $dropbox->files_put('folder/test.txt', $fh_put, { parent_rev => ... }) or die $dropbox->error;
-    # conflict prevention
+    # $dropbox->res->code => 304
 
-L<https://www.dropbox.com/developers/reference/api#files_put>
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-download>
 
-=head2 files_put_chunked(path, input) - Uploads large files by chunked_upload and commit_chunked_upload.
+=head3 get_metadata($path [, \%optional_params])
 
-    my $fh_put = IO::File->new('some large file');
-    $dropbox->files_put('folder/test.txt', $fh_put) or die $dropbox->error;
-    $fh_put->close;
+Returns the metadata for a file or folder.
 
-L<https://www.dropbox.com/developers/reference/api#chunked_upload>
+Note: Metadata for the root folder is unsupported.
 
-=head2 chunked_upload(input, [params]) - Uploads large files
+    $dropbox->get_metadata($path);
 
-    # large file 1/3
-    my $fh_put = IO::File->new('large file part 1');
-    my $data = $dropbox->chunked_upload($fh_put) or die $dropbox->error;
-    $fh_put->close;
+    $dropbox->get_metadata($path, {
+        include_media_info => JSON::true,
+        include_deleted => JSON::true,
+        include_has_explicit_shared_members => JSON::false,
+    });
 
-    # large file 2/3
-    $fh_put = IO::File->new('large file part 2');
-    $data = $dropbox->chunked_upload($fh_put, {
-        upload_id => $data->{upload_id},
-        offset => $data->{offset}
-    }) or die $dropbox->error;
-    $fh_put->close;
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata>
 
-    # large file 3/3
-    $fh_put = IO::File->new('large file part 3');
-    $data = $dropbox->chunked_upload($fh_put, {
-        upload_id => $data->{upload_id},
-        offset => $data->{offset}
-    }) or die $dropbox->error;
-    $fh_put->close;
+=head3 get_preview($path, $outout [, \%opts])
 
-    # commit
-    $dropbox->commit_chunked_upload('folder/test.txt', {
-        upload_id => $data->{upload_id}
-    }) or die $dropbox->error;
+Get a preview for a file. Currently previews are only generated for the files with the following extensions: .doc, .docx, .docm, .ppt, .pps, .ppsx, .ppsm, .pptx, .pptm, .xls, .xlsx, .xlsm, .rtf
 
-L<https://www.dropbox.com/developers/reference/api#chunked_upload>
+    # File handle
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_preview($path, $fh);
 
-=head2 commit_chunked_upload(path, params) - Completes an upload initiated by the chunked_upload method.
+    # Code reference
+    my $write_code = sub {
+        # compatible with LWP::UserAgent and Furl::HTTP
+        my $chunk = @_ == 4 ? @_[3] : $_[0];
+        print $chunk;
+    };
+    $dropbox->get_preview($path, $write_code);
 
-    $dropbox->commit_chunked_upload('folder/test.txt', {
-        upload_id => $data->{upload_id}
-    }) or die $dropbox->error;
+    # Range
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_preview($path, $fh, { headers => ['Range' => 'bytes=5-6'] });
 
-L<https://www.dropbox.com/developers/reference/api#commit_chunked_upload>
+    # If-None-Match / ETag
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_preview($path, $fh);
 
-=head2 copy(from_path or from_copy_ref, to_path)
+    # $dropbox->res->code => 200
 
-    # from_path
-    $dropbox->copy('folder/test.txt', 'folder/test_copy.txt') or die $dropbox->error;
+    my $etag = $dropbox->res->header('ETag');
 
-    # from_copy_ref
-    my $copy_ref = $dropbox->copy_ref('folder/test.txt') or die $dropbox->error;
+    $dropbox->get_preview($path, $fh, { headers => ['If-None-Match', $etag] });
 
-    $dropbox->copy($copy_ref, 'folder/test_copy.txt') or die $dropbox->error;
+    # $dropbox->res->code => 304
 
-L<https://www.dropbox.com/developers/reference/api#fileops-copy>
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-get_preview>
 
-=head2 move(from_path, to_path)
+=head3 get_temporary_link($path)
 
-    $dropbox->move('folder/test.txt', 'folder/test_move.txt') or die $dropbox->error;
+Get a temporary link to stream content of a file. This link will expire in four hours and afterwards you will get 410 Gone. Content-Type of the link is determined automatically by the file's mime type.
 
-L<https://www.dropbox.com/developers/reference/api#fileops-move>
+    $dropbox->get_temporary_link($path);
 
-=head2 delete(path)
+    my $content_type = $dropbox->res->header('Content-Type');
 
-    # folder delete
-    $dropbox->delete('folder') or die $dropbox->error;
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-get_temporary_link>
 
-    # file delete
-    $dropbox->delete('folder/test.txt') or die $dropbox->error;
+=head3 get_thumbnail($path, $output [, \%optional_params, $opts])
 
-L<https://www.dropbox.com/developers/reference/api#fileops-delete>
+Get a thumbnail for an image.
 
-=head2 create_folder(path)
+This method currently supports files with the following file extensions: jpg, jpeg, png, tiff, tif, gif and bmp. Photos that are larger than 20MB in size won't be converted to a thumbnail.
 
-    $dropbox->create_folder('some_folder') or die $dropbox->error;
+    # File handle
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_thumbnail($path, $fh);
 
-L<https://www.dropbox.com/developers/reference/api#fileops-create-folder>
+    my $optional_params = {
+        format => 'jpeg',
+        size => 'w64h64'
+    };
 
-=head2 metadata(path, [params]) - get file list
+    $dropbox->get_thumbnail($path, $fh, $optional_params);
 
-    my $data = $dropbox->metadata('some_folder') or die $dropbox->error;
+    # Code reference
+    my $write_code = sub {
+        # compatible with LWP::UserAgent and Furl::HTTP
+        my $chunk = @_ == 4 ? @_[3] : $_[0];
+        print $chunk;
+    };
+    $dropbox->get_thumbnail($path, $write_code);
 
-    my $data = $dropbox->metadata('some_file') or die $dropbox->error;
+    # Range
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_thumbnail($path, $fh, $optional_params, { headers => ['Range' => 'bytes=5-6'] });
 
-    # 304
-    my $data = $dropbox->metadata('some_folder', { hash => ... });
-    return if $dropbox->code == 304; # not modified
-    die $dropbox->error if $dropbox->error;
-    return $data;
+    # If-None-Match / ETag
+    my $fh = IO::File->new('some file', '>');
+    $dropbox->get_thumbnail($path, $fh);
 
-L<https://www.dropbox.com/developers/reference/api#metadata>
+    # $dropbox->res->code => 200
 
-=head2 delta([params]) - get file list
+    my $etag = $dropbox->res->header('ETag');
 
-    my $data = $dropbox->delta() or die $dropbox->error;
+    $dropbox->get_thumbnail($path, $fh, $optional_params, { headers => ['If-None-Match', $etag] });
 
-L<https://www.dropbox.com/developers/reference/api#delta>
+    # $dropbox->res->code => 304
 
-=head2 revisions(path, [params])
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-get_thumbnail>
 
-    my $data = $dropbox->revisions('some_file') or die $dropbox->error;
+=head3 list_folder($path [, \%optional_params])
 
-L<https://www.dropbox.com/developers/reference/api#revisions>
+Returns the contents of a folder.
 
-=head2 restore(path, [params])
+    $dropbox->list_folder($path);
 
-    # params rev is Required
-    my $data = $dropbox->restore('some_file', { rev => $rev }) or die $dropbox->error;
+    $dropbox->list_folder($path, {
+        recursive => JSON::false,
+        include_media_info => JSON::false,
+        include_deleted => JSON::false,
+        include_has_explicit_shared_members => JSON::false
+    });
 
-L<https://www.dropbox.com/developers/reference/api#restore>
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder>
 
-=head2 search(path, [params])
+=head3 list_folder_continue($cursor)
 
-    # query rev is Required
-    my $data = $dropbox->search('some_file', { query => $query }) or die $dropbox->error;
+Once a cursor has been retrieved from list_folder, use this to paginate through all files and retrieve updates to the folder.
 
-L<https://www.dropbox.com/developers/reference/api#search>
+    $dropbox->list_folder_continue($cursor);
 
-=head2 shares(path, [params])
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-continue>
 
-    my $data = $dropbox->shares('some_file') or die $dropbox->error;
+=head3 list_folder_get_latest_cursor($path [, \%optional_params])
 
-L<https://www.dropbox.com/developers/reference/api#shares>
+A way to quickly get a cursor for the folder's state. Unlike list_folder, list_folder/get_latest_cursor doesn't return any entries. This endpoint is for app which only needs to know about new files and modifications and doesn't need to know about files that already exist in Dropbox.
 
-=head2 media(path, [params])
+    $dropbox->list_folder_get_latest_cursor($path);
 
-    my $data = $dropbox->media('some_file') or die $dropbox->error;
+    $dropbox->list_folder_get_latest_cursor($path, {
+        recursive => JSON::false,
+        include_media_info => JSON::false,
+        include_deleted => JSON::false,
+        include_has_explicit_shared_members => JSON::false
+    });
 
-L<https://www.dropbox.com/developers/reference/api#media>
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-get_latest_cursor>
 
-=head2 copy_ref(path)
+=head3 list_folder_longpoll($cursor [, \%optional_params])
 
-    my $copy_ref = $dropbox->copy_ref('folder/test.txt') or die $dropbox->error;
+A longpoll endpoint to wait for changes on an account. In conjunction with list_folder/continue, this call gives you a low-latency way to monitor an account for file changes. The connection will block until there are changes available or a timeout occurs. This endpoint is useful mostly for client-side apps. If you're looking for server-side notifications, check out our webhooks documentation.
 
-    $dropbox->copy($copy_ref, 'folder/test_copy.txt') or die $dropbox->error;
+    $dropbox->list_folder_longpoll($cursor);
 
-L<https://www.dropbox.com/developers/reference/api#copy_ref>
+    $dropbox->list_folder_longpoll($cursor, {
+        timeout => 30
+    });
 
-=head2 thumbnails(path, output)
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-longpoll>
 
-    my $fh_get = File::Temp->new;
-    $dropbox->thumbnails('folder/file.txt', $fh_get) or die $dropbox->error;
-    $fh_get->flush;
-    $fh_get->seek(0, 0);
+=head3 list_revisions($path [, \%optional_params])
 
-L<https://www.dropbox.com/developers/reference/api#thumbnails>
+Return revisions of a file.
 
-=head2 env_proxy
+    $dropbox->list_revisions($path);
+
+    $dropbox->list_revisions($path, {
+        limit => 10
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-list_revisions>
+
+=head3 move($from_path, $to_path)
+
+Return revisions of a file.
+
+    $dropbox->move($from_path, $to_path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-move>
+
+=head3 permanently_delete($path)
+
+Permanently delete the file or folder at a given path (see https://www.dropbox.com/en/help/40).
+
+Note: This endpoint is only available for Dropbox Business apps.
+
+    $dropbox->permanently_delete($path);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-permanently_delete>
+
+=head3 restore($path, $rev)
+
+Restore a file to a specific revision.
+
+    $dropbox->restore($path, $rev);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-restore>
+
+=head3 save_url($path, $url)
+
+Save a specified URL into a file in user's Dropbox. If the given path already exists, the file will be renamed to avoid the conflict (e.g. myfile (1).txt).
+
+    $dropbox->save_url($path, $url);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-save_url>
+
+=head3 save_url_check_job_status($async_job_id)
+
+Check the status of a save_url job.
+
+    $dropbox->save_url_check_job_status($async_job_id);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-save_url-check_job_status>
+
+=head3 search($path [, \%optional_params])
+
+Searches for files and folders.
+
+Note: Recent changes may not immediately be reflected in search results due to a short delay in indexing.
+
+    $dropbox->search($path);
+
+    $dropbox->search($path, {
+        query => 'prime numbers',
+        start => 0,
+        max_results => 100,
+        mode => 'filename'
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-search>
+
+=head3 upload($path, $content [, \%optional_params])
+
+Create a new file with the contents provided in the request.
+
+Do not use this to upload a file larger than 150 MB. Instead, create an upload session with upload_session/start.
+
+    # File Handle
+    my $content = IO::File->new('./my.cnf', '<');
+
+    $dropbox->upload($path, $content);
+
+    $dropbox->upload($path, $content, {
+        mode => 'add',
+        autorename => JSON::true,
+        mute => JSON::false
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload>
+
+=head3 upload_session($path, $content [, \%optional_params, $limit])
+
+Uploads large files by upload_session API
+
+    # File Handle
+    my $content = IO::File->new('./mysql.dump', '<');
+
+    $dropbox->upload($path, $content);
+
+    $dropbox->upload($path, $content, {
+        mode => 'add',
+        autorename => JSON::true,
+        mute => JSON::false
+    });
+
+=over 4
+
+=item L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-start>
+
+=item L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-append_v2>
+
+=item L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-finish>
+
+=back
+
+=head3 upload_session_start($content [, \%optional_params])
+
+Upload sessions allow you to upload a single file using multiple requests. This call starts a new upload session with the given data. You can then use upload_session/append_v2 to add more data and upload_session/finish to save all the data to a file in Dropbox.
+
+A single request should not upload more than 150 MB of file contents.
+
+    # File Handle
+    my $content = IO::File->new('./access.log', '<');
+
+    $dropbox->upload_session_start($content);
+
+    $dropbox->upload_session_start($content, {
+        close => JSON::true
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-start>
+
+=head3 upload_session_append_v2($content, $params)
+
+Append more data to an upload session.
+
+When the parameter close is set, this call will close the session.
+
+A single request should not upload more than 150 MB of file contents.
+
+    # File Handle
+    my $content = IO::File->new('./access.log.1', '<');
+
+    $dropbox->upload_session_append_v2($content, {
+        cursor => {
+            session_id => $session_id,
+            offset => $offset
+        },
+        close => JSON::true
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-append_v2>
+
+=head3 upload_session_finish($content, $params)
+
+Finish an upload session and save the uploaded data to the given file path.
+
+A single request should not upload more than 150 MB of file contents.
+
+    # File Handle
+    my $content = IO::File->new('./access.log.last', '<');
+
+    $dropbox->upload_session_finish($content, {
+        cursor => {
+            session_id => $session_id,
+            offset => $offset
+        },
+        commit => {
+            path => '/Homework/math/Matrices.txt',
+            mode => 'add',
+            autorename => JSON::true,
+            mute => JSON::false
+        }
+    });
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#files-upload_session-finish>
+
+=head2 Users
+
+=head3 get_account($account_id)
+
+Get information about a user's account.
+
+    $dropbox->get_account($account_id);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_account>
+
+=head3 get_account_batch(\@account_ids)
+
+Get information about multiple user accounts. At most 300 accounts may be queried per request.
+
+    $dropbox->get_account_batch($account_id);
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_account_batch>
+
+=head3 get_current_account()
+
+Get information about the current user's account.
+
+    $dropbox->get_current_account;
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_current_account>
+
+=head3 get_space_usage()
+
+Get the space usage information for the current user's account.
+
+    $dropbox->get_space_usage;
+
+L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_space_usage>
+
+=head2 Error Handling and Debug
+
+=head3 error : str
+
+    warn $dropbox->error;
+
+=head3 req : HTTP::Request or Furl::Request
+
+    warn $dropbox->req->as_string;
+
+=head3 res : HTTP::Response or Furl::Response
+
+    warn $dropbox->res->code;
+    warn $dropbox->res->header('ETag');
+    warn $dropbox->res->header('Content-Type');
+    warn $dropbox->res->header('Content-Length');
+    warn $dropbox->res->header('X-Dropbox-Request-Id');
+    warn $dropbox->res->as_string;
+
+=head3 env_proxy
 
 enable HTTP_PROXY, NO_PROXY
 
     $dropbox->env_proxy;
+
+=head3 debug
+
+enable or disable debug mode
+
+    $dropbox->debug; # disabled
+    $dropbox->debug(0); # disabled
+    $dropbox->debug(1); # enabled
+
+=head3 verbose
+
+more warnings.
+
+    $dropbox->verbose; # disabled
+    $dropbox->verbose(0); # disabled
+    $dropbox->verbose(1); # enabled
 
 =head1 AUTHOR
 
@@ -891,7 +971,13 @@ Shinichiro Aska
 
 =head1 SEE ALSO
 
-- L<https://www.dropbox.com/developers/reference/api>
+=over 4
+
+=item L<https://www.dropbox.com/developers/documentation/http/documentation>
+
+=item L<https://www.dropbox.com/developers/reference/migration-guide>
+
+=back
 
 =head1 LICENSE
 

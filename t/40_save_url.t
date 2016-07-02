@@ -22,26 +22,12 @@ my $dropbox = WebService::Dropbox->new({
 $dropbox->debug;
 $dropbox->verbose;
 
-$dropbox->get_current_account or die $dropbox->error;
-
-my $fh_put = File::Temp->new;
-$fh_put->print('test.test.test.');
-$fh_put->flush;
-$fh_put->seek(0, 0);
-$dropbox->upload('/304.dat', $fh_put) or die $dropbox->error;
-$fh_put->close;
-
-my $fh_get = File::Temp->new;
-$dropbox->download('/304.dat', $fh_get);
+my $save_url = $dropbox->save_url('/make_test_folder/copy.5.html', 'https://aska.pw');
 
 is $dropbox->res->code, 200;
 
-my $etag = $dropbox->res->header('ETag');
+$dropbox->save_url_check_job_status($save_url->{async_job_id});
 
-$dropbox->download('/304.dat', $fh_get, { headers => ['If-None-Match', $etag] });
-
-is $dropbox->res->code, 304;
-
-$dropbox->delete('/304.dat');
+is $dropbox->res->code, 200;
 
 done_testing();

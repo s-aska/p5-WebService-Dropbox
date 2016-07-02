@@ -5,7 +5,7 @@
 
 /carton.lock
 /.carton/
-/local/
+local/
 
 nytprof.out
 nytprof/
@@ -28,3 +28,5 @@ MYMETA.*
 /_build_params
 !Build/
 !META.json
+
+cpanfile.snapshot
