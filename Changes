@@ -1,6 +1,7 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+        - Fix document format
 
 2.00 2016-07-02T17:14:48Z
 	- migrate API v2

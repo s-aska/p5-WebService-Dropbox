@@ -160,7 +160,7 @@ my $token = $dropbox->token($code, $redirect_uri);
 Disables the access token used to authenticate the call.
 
 ```perl
-$dropbox->revoke;
+my $result = $dropbox->revoke;
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#auth-token-revoke](https://www.dropbox.com/developers/documentation/http/documentation#auth-token-revoke)
@@ -173,7 +173,7 @@ Copy a file or folder to a different location in the user's Dropbox.
 If the source path is a folder all its contents will be copied.
 
 ```perl
-$dropbox->copy($from_path, $to_path);
+my $result = $dropbox->copy($from_path, $to_path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-copy](https://www.dropbox.com/developers/documentation/http/documentation#files-copy)
@@ -183,7 +183,7 @@ $dropbox->copy($from_path, $to_path);
 Get a copy reference to a file or folder. This reference string can be used to save that file or folder to another user's Dropbox by passing it to copy\_reference/save.
 
 ```perl
-$dropbox->copy_reference_get($path);
+my $result = $dropbox->copy_reference_get($path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-copy\_reference-get](https://www.dropbox.com/developers/documentation/http/documentation#files-copy_reference-get)
@@ -193,7 +193,7 @@ $dropbox->copy_reference_get($path);
 Save a copy reference returned by copy\_reference/get to the user's Dropbox.
 
 ```perl
-$dropbox->copy_reference_save($copy_reference, $path);
+my $result = $dropbox->copy_reference_save($copy_reference, $path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-copy\_reference-save](https://www.dropbox.com/developers/documentation/http/documentation#files-copy_reference-save)
@@ -203,7 +203,7 @@ $dropbox->copy_reference_save($copy_reference, $path);
 Create a folder at a given path.
 
 ```perl
-$dropbox->create_folder($path);
+my $result = $dropbox->create_folder($path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-create\_folder](https://www.dropbox.com/developers/documentation/http/documentation#files-create_folder)
@@ -217,7 +217,7 @@ If the path is a folder, all its contents will be deleted too.
 A successful response indicates that the file or folder was deleted. The returned metadata will be the corresponding FileMetadata or FolderMetadata for the item at time of deletion, and not a DeletedMetadata object.
 
 ```perl
-$dropbox->delete($path);
+my $result = $dropbox->delete($path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-delete](https://www.dropbox.com/developers/documentation/http/documentation#files-delete)
@@ -265,9 +265,9 @@ Returns the metadata for a file or folder.
 Note: Metadata for the root folder is unsupported.
 
 ```perl
-$dropbox->get_metadata($path);
+my $result = $dropbox->get_metadata($path);
 
-$dropbox->get_metadata($path, {
+my $result = $dropbox->get_metadata($path, {
     include_media_info => JSON::true,
     include_deleted => JSON::true,
     include_has_explicit_shared_members => JSON::false,
@@ -317,7 +317,7 @@ $dropbox->get_preview($path, $fh, { headers => ['If-None-Match', $etag] });
 Get a temporary link to stream content of a file. This link will expire in four hours and afterwards you will get 410 Gone. Content-Type of the link is determined automatically by the file's mime type.
 
 ```perl
-$dropbox->get_temporary_link($path);
+my $result = $dropbox->get_temporary_link($path);
 
 my $content_type = $dropbox->res->header('Content-Type');
 ```
@@ -374,9 +374,9 @@ $dropbox->get_thumbnail($path, $fh, $optional_params, { headers => ['If-None-Mat
 Returns the contents of a folder.
 
 ```perl
-$dropbox->list_folder($path);
+my $result = $dropbox->list_folder($path);
 
-$dropbox->list_folder($path, {
+my $result = $dropbox->list_folder($path, {
     recursive => JSON::false,
     include_media_info => JSON::false,
     include_deleted => JSON::false,
@@ -391,7 +391,7 @@ $dropbox->list_folder($path, {
 Once a cursor has been retrieved from list\_folder, use this to paginate through all files and retrieve updates to the folder.
 
 ```perl
-$dropbox->list_folder_continue($cursor);
+my $result = $dropbox->list_folder_continue($cursor);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-list\_folder-continue](https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-continue)
@@ -401,9 +401,9 @@ $dropbox->list_folder_continue($cursor);
 A way to quickly get a cursor for the folder's state. Unlike list\_folder, list\_folder/get\_latest\_cursor doesn't return any entries. This endpoint is for app which only needs to know about new files and modifications and doesn't need to know about files that already exist in Dropbox.
 
 ```perl
-$dropbox->list_folder_get_latest_cursor($path);
+my $result = $dropbox->list_folder_get_latest_cursor($path);
 
-$dropbox->list_folder_get_latest_cursor($path, {
+my $result = $dropbox->list_folder_get_latest_cursor($path, {
     recursive => JSON::false,
     include_media_info => JSON::false,
     include_deleted => JSON::false,
@@ -418,9 +418,9 @@ $dropbox->list_folder_get_latest_cursor($path, {
 A longpoll endpoint to wait for changes on an account. In conjunction with list\_folder/continue, this call gives you a low-latency way to monitor an account for file changes. The connection will block until there are changes available or a timeout occurs. This endpoint is useful mostly for client-side apps. If you're looking for server-side notifications, check out our webhooks documentation.
 
 ```perl
-$dropbox->list_folder_longpoll($cursor);
+my $result = $dropbox->list_folder_longpoll($cursor);
 
-$dropbox->list_folder_longpoll($cursor, {
+my $result = $dropbox->list_folder_longpoll($cursor, {
     timeout => 30
 });
 ```
@@ -432,9 +432,9 @@ $dropbox->list_folder_longpoll($cursor, {
 Return revisions of a file.
 
 ```perl
-$dropbox->list_revisions($path);
+my $result = $dropbox->list_revisions($path);
 
-$dropbox->list_revisions($path, {
+my $result = $dropbox->list_revisions($path, {
     limit => 10
 });
 ```
@@ -446,7 +446,7 @@ $dropbox->list_revisions($path, {
 Return revisions of a file.
 
 ```perl
-$dropbox->move($from_path, $to_path);
+my $result = $dropbox->move($from_path, $to_path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-move](https://www.dropbox.com/developers/documentation/http/documentation#files-move)
@@ -458,7 +458,7 @@ Permanently delete the file or folder at a given path (see https://www.dropbox.c
 Note: This endpoint is only available for Dropbox Business apps.
 
 ```perl
-$dropbox->permanently_delete($path);
+my $result = $dropbox->permanently_delete($path);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-permanently\_delete](https://www.dropbox.com/developers/documentation/http/documentation#files-permanently_delete)
@@ -468,7 +468,7 @@ $dropbox->permanently_delete($path);
 Restore a file to a specific revision.
 
 ```perl
-$dropbox->restore($path, $rev);
+my $result = $dropbox->restore($path, $rev);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-restore](https://www.dropbox.com/developers/documentation/http/documentation#files-restore)
@@ -478,7 +478,7 @@ $dropbox->restore($path, $rev);
 Save a specified URL into a file in user's Dropbox. If the given path already exists, the file will be renamed to avoid the conflict (e.g. myfile (1).txt).
 
 ```perl
-$dropbox->save_url($path, $url);
+my $result = $dropbox->save_url($path, $url);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-save\_url](https://www.dropbox.com/developers/documentation/http/documentation#files-save_url)
@@ -488,7 +488,7 @@ $dropbox->save_url($path, $url);
 Check the status of a save\_url job.
 
 ```perl
-$dropbox->save_url_check_job_status($async_job_id);
+my $result = $dropbox->save_url_check_job_status($async_job_id);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-save\_url-check\_job\_status](https://www.dropbox.com/developers/documentation/http/documentation#files-save_url-check_job_status)
@@ -500,9 +500,9 @@ Searches for files and folders.
 Note: Recent changes may not immediately be reflected in search results due to a short delay in indexing.
 
 ```perl
-$dropbox->search($path);
+my $result = $dropbox->search($path);
 
-$dropbox->search($path, {
+my $result = $dropbox->search($path, {
     query => 'prime numbers',
     start => 0,
     max_results => 100,
@@ -522,9 +522,9 @@ Do not use this to upload a file larger than 150 MB. Instead, create an upload s
 # File Handle
 my $content = IO::File->new('./my.cnf', '<');
 
-$dropbox->upload($path, $content);
+my $result = $dropbox->upload($path, $content);
 
-$dropbox->upload($path, $content, {
+my $result = $dropbox->upload($path, $content, {
     mode => 'add',
     autorename => JSON::true,
     mute => JSON::false
@@ -541,9 +541,9 @@ Uploads large files by upload\_session API
 # File Handle
 my $content = IO::File->new('./mysql.dump', '<');
 
-$dropbox->upload($path, $content);
+my $result = $dropbox->upload($path, $content);
 
-$dropbox->upload($path, $content, {
+my $result = $dropbox->upload($path, $content, {
     mode => 'add',
     autorename => JSON::true,
     mute => JSON::false
@@ -585,7 +585,7 @@ A single request should not upload more than 150 MB of file contents.
 # File Handle
 my $content = IO::File->new('./access.log.1', '<');
 
-$dropbox->upload_session_append_v2($content, {
+my $result = $dropbox->upload_session_append_v2($content, {
     cursor => {
         session_id => $session_id,
         offset => $offset
@@ -606,7 +606,7 @@ A single request should not upload more than 150 MB of file contents.
 # File Handle
 my $content = IO::File->new('./access.log.last', '<');
 
-$dropbox->upload_session_finish($content, {
+my $result = $dropbox->upload_session_finish($content, {
     cursor => {
         session_id => $session_id,
         offset => $offset
@@ -629,7 +629,7 @@ $dropbox->upload_session_finish($content, {
 Get information about a user's account.
 
 ```perl
-$dropbox->get_account($account_id);
+my $result = $dropbox->get_account($account_id);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#users-get\_account](https://www.dropbox.com/developers/documentation/http/documentation#users-get_account)
@@ -639,7 +639,7 @@ $dropbox->get_account($account_id);
 Get information about multiple user accounts. At most 300 accounts may be queried per request.
 
 ```perl
-$dropbox->get_account_batch($account_id);
+my $result = $dropbox->get_account_batch($account_id);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#users-get\_account\_batch](https://www.dropbox.com/developers/documentation/http/documentation#users-get_account_batch)
@@ -649,7 +649,7 @@ $dropbox->get_account_batch($account_id);
 Get information about the current user's account.
 
 ```perl
-$dropbox->get_current_account;
+my $result = $dropbox->get_current_account;
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#users-get\_current\_account](https://www.dropbox.com/developers/documentation/http/documentation#users-get_current_account)
@@ -659,7 +659,7 @@ $dropbox->get_current_account;
 Get the space usage information for the current user's account.
 
 ```perl
-$dropbox->get_space_usage;
+my $result = $dropbox->get_space_usage;
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#users-get\_space\_usage](https://www.dropbox.com/developers/documentation/http/documentation#users-get_space_usage)
@@ -669,18 +669,25 @@ $dropbox->get_space_usage;
 ### error : str
 
 ```perl
-warn $dropbox->error;
+my $result = $dropbox->$some_api;
+unless ($result) {
+    die $dropbox->error;
+}
 ```
 
 ### req : HTTP::Request or Furl::Request
 
 ```perl
+my $result = $dropbox->$some_api;
+
 warn $dropbox->req->as_string;
 ```
 
 ### res : HTTP::Response or Furl::Response
 
 ```perl
+my $result = $dropbox->$some_api;
+
 warn $dropbox->res->code;
 warn $dropbox->res->header('ETag');
 warn $dropbox->res->header('Content-Type');
@@ -694,6 +701,8 @@ warn $dropbox->res->as_string;
 enable HTTP\_PROXY, NO\_PROXY
 
 ```perl
+my $dropbox = WebService::Dropbox->new();
+
 $dropbox->env_proxy;
 ```
 
@@ -702,6 +711,8 @@ $dropbox->env_proxy;
 enable or disable debug mode
 
 ```perl
+my $dropbox = WebService::Dropbox->new();
+
 $dropbox->debug; # disabled
 $dropbox->debug(0); # disabled
 $dropbox->debug(1); # enabled
@@ -712,6 +723,8 @@ $dropbox->debug(1); # enabled
 more warnings.
 
 ```perl
+my $dropbox = WebService::Dropbox->new();
+
 $dropbox->verbose; # disabled
 $dropbox->verbose(0); # disabled
 $dropbox->verbose(1); # enabled

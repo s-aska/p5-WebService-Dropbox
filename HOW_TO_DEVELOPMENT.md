@@ -27,7 +27,7 @@ our $VERSION = '2.00';
 
 ```sh
 echo '[![Build Status](https://travis-ci.org/s-aska/p5-WebService-Dropbox.png?branch=master)](https://travis-ci.org/s-aska/p5-WebService-Dropbox)' > README.md
-perl -MPod::Markdown::Github -e '*Pod::Markdown::Github::syntax = sub { 'perl' }; Pod::Markdown::Github->filter(shift);' lib/WebService/Dropbox.pm >> README.md
+perl -MPod::Markdown::Github -e 'Pod::Markdown::Github->filter(shift)' lib/WebService/Dropbox.pm >> README.md
 ```
 
 ## Test
