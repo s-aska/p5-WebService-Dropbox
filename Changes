@@ -1,6 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+
+2.02 2016-07-03T05:07:22Z
         - Fix CPAN Testers
 
 2.01 2016-07-02T19:06:18Z
