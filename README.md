@@ -639,7 +639,7 @@ my $result = $dropbox->get_account($account_id);
 Get information about multiple user accounts. At most 300 accounts may be queried per request.
 
 ```perl
-my $result = $dropbox->get_account_batch($account_id);
+my $result = $dropbox->get_account_batch($account_ids);
 ```
 
 [https://www.dropbox.com/developers/documentation/http/documentation#users-get\_account\_batch](https://www.dropbox.com/developers/documentation/http/documentation#users-get_account_batch)
