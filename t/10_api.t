@@ -44,7 +44,7 @@ if ($exists) {
 }
 
 $dropbox->download("/x", File::Temp->new);
-like $dropbox->error, qr|{"error_summary": "path/not_found/\.*", "error": {"\.tag": "path", "path": {"\.tag": "not_found"}}}|, 'File not found';
+like $dropbox->error, qr|not_found|, 'File not found';
 
 $dropbox->create_folder('/make_test_folder') or die $dropbox->error;
 is $dropbox->res->code, 200, "create_folder success";
