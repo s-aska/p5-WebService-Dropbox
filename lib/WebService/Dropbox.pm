@@ -904,7 +904,7 @@ L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_
 
 Get information about multiple user accounts. At most 300 accounts may be queried per request.
 
-    my $result = $dropbox->get_account_batch($account_id);
+    my $result = $dropbox->get_account_batch($account_ids);
 
 L<https://www.dropbox.com/developers/documentation/http/documentation#users-get_account_batch>
 
