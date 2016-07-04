@@ -394,7 +394,7 @@ L<https://www.dropbox.com/developers/documentation/http/documentation#oauth2-aut
 
     my $url = $dropbox->authorize;
 
-    print "Please Access URL and press Enter: $url\n";
+    print "Please Access URL: $url\n";
     print "Please Input Code: ";
 
     chomp( my $code = <STDIN> );

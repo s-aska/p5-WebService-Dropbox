@@ -71,7 +71,7 @@ WebService::Dropbox is Perl interface to Dropbox API
 ```perl
 my $url = $dropbox->authorize;
 
-print "Please Access URL and press Enter: $url\n";
+print "Please Access URL: $url\n";
 print "Please Input Code: ";
 
 chomp( my $code = <STDIN> );
