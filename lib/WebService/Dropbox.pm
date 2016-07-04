@@ -384,13 +384,13 @@ WebService::Dropbox is Perl interface to Dropbox API
 
 - Streaming IO (Low Memory)
 
-=head1 API v1 → v2 Migration guide
+=head1 API v1 => v2 Migration guide
 
 files to download, files_put to upload ...
 
 L<https://www.dropbox.com/developers/reference/migration-guide>
 
-=head2 Migration OAuth1 Token → OAuth2 Token
+=head2 Migration OAuth1 Token => OAuth2 Token
 
     use WebService::Dropbox::TokenFromOAuth1;
 
