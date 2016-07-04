@@ -59,7 +59,7 @@ sub download {
         url => 'https://content.dropboxapi.com/2/files/download',
         params => { path => $path },
         output => $output,
-        %{ $opts // +{} },
+        %{ $opts || +{} },
     });
 }
 
@@ -69,7 +69,7 @@ sub get_metadata {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
@@ -90,7 +90,7 @@ sub get_preview {
         url => 'https://content.dropboxapi.com/2/files/get_preview',
         params => $params,
         output => $output,
-        %{ $opts // +{} },
+        %{ $opts || +{} },
     });
 }
 
@@ -114,14 +114,14 @@ sub get_thumbnail {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
         url => 'https://content.dropboxapi.com/2/files/get_thumbnail',
         params => $params,
         output => $output,
-        %{ $opts // +{} },
+        %{ $opts || +{} },
     });
 }
 
@@ -131,7 +131,7 @@ sub list_revisions {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
@@ -220,7 +220,7 @@ sub search {
     my $params = {
         path => $path,
         query => $query,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
@@ -235,7 +235,7 @@ sub upload {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({

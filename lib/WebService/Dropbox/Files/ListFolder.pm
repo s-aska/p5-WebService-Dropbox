@@ -15,7 +15,7 @@ sub list_folder {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
@@ -44,7 +44,7 @@ sub list_folder_get_latest_cursor {
 
     my $params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({
@@ -59,7 +59,7 @@ sub list_folder_longpoll {
 
     my $params = {
         cursor => $cursor,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     $self->api({

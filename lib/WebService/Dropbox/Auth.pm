@@ -12,8 +12,8 @@ our @EXPORT = do {
 sub authorize {
     my ($self, $params) = @_;
 
-    $params //= {};
-    $params->{response_type} //= 'code';
+    $params ||= {};
+    $params->{response_type} ||= 'code';
 
     my $url = URI->new('https://www.dropbox.com/oauth2/authorize');
     $url->query_form(

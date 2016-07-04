@@ -18,7 +18,7 @@ sub upload_session {
 
     my $commit_params = {
         path => $path,
-        %{ $optional_params // {} },
+        %{ $optional_params || {} },
     };
 
     my $upload;

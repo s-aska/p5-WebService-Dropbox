@@ -1,6 +1,7 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+        - Support perl 5.8
 
 2.02 2016-07-03T05:07:22Z
         - Fix CPAN Testers
@@ -9,7 +10,7 @@ Revision history for Perl extension WebService::Dropbox
         - Fix document format
 
 2.00 2016-07-02T17:14:48Z
-	- migrate API v2
+        - migrate API v2
 
 1.22 2014-10-07T09:12:06Z
         - support　WebService::Dropbox#files's error

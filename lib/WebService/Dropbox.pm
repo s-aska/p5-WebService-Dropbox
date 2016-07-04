@@ -14,7 +14,7 @@ use WebService::Dropbox::Files::UploadSession;
 # use WebService::Dropbox::Sharing; comming soon...
 use WebService::Dropbox::Users;
 
-our $VERSION = '2.02';
+our $VERSION = '2.03';
 
 __PACKAGE__->mk_accessors(qw/
     timeout
@@ -91,7 +91,7 @@ sub api {
     # Always HTTP POST. https://www.dropbox.com/developers/documentation/http/documentation#formats
     $args->{method}  = 'POST';
 
-    $args->{headers} //= [];
+    $args->{headers} ||= [];
 
     if ($self->access_token && $args->{url} ne 'https://notify.dropboxapi.com/2/files/list_folder/longpoll') {
         push @{ $args->{headers} }, 'Authorization', 'Bearer ' . $self->access_token;
@@ -172,7 +172,7 @@ ${color}%s %s\e[0m
                 $req->uri,
                 $req->method,
                 $req->uri->path,
-                $req->protocol // '',
+                $req->protocol || '',
                 $req->headers->as_string,
                 ( ref $args->{content} ? '' : $args->{content} && $params ? $JSON_PRETTY->encode($params) : '' ),
                 $res->protocol,
@@ -201,13 +201,13 @@ ${color}%s %s\e[0m
 
     $self->error(undef);
 
-    return $res_data // +{};
+    return $res_data || +{};
 }
 
 sub api_lwp {
     my ($self, $args) = @_;
 
-    my @headers = @{ $args->{headers} // +[] };
+    my @headers = @{ $args->{headers} || +[] };
 
     if ($args->{write_file}) {
         $args->{write_code} = sub {
