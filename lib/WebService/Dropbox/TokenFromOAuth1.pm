@@ -21,8 +21,12 @@ sub token_from_oauth1 {
     $request->sign;
     my $ua = LWP::UserAgent->new;
     my $res = $ua->post($request->to_url);
-    my $data = decode_json($res->decoded_content);
-    return $data->{access_token};
+    if ($res->is_success) {
+        my $data = decode_json($res->decoded_content);
+        return $data->{access_token};
+    }
+    warn $res->decoded_content;
+    return;
 }
 
 sub nonce {

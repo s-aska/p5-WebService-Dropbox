@@ -1,6 +1,7 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+        - Add migration guide
 
 2.03 2016-07-04T09:30:07Z
         - Support perl 5.8

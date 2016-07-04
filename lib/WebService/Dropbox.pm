@@ -14,7 +14,7 @@ use WebService::Dropbox::Files::UploadSession;
 # use WebService::Dropbox::Sharing; comming soon...
 use WebService::Dropbox::Users;
 
-our $VERSION = '2.03';
+our $VERSION = '2.04';
 
 __PACKAGE__->mk_accessors(qw/
     timeout
@@ -383,6 +383,25 @@ WebService::Dropbox is Perl interface to Dropbox API
 - Support Furl (Fast!!!)
 
 - Streaming IO (Low Memory)
+
+=head1 API v1 → v2 Migration guide
+
+files to download, files_put to upload ...
+
+L<https://www.dropbox.com/developers/reference/migration-guide>
+
+=head2 Migration OAuth1 Token → OAuth2 Token
+
+    use WebService::Dropbox::TokenFromOAuth1;
+
+    my $oauth2_access_token = WebService::Dropbox::TokenFromOAuth1->token_from_oauth1({
+        consumer_key    => $dropbox->key,
+        consumer_secret => $dropbox->secret,
+        access_token    => $access_token,  # OAuth1 access_token
+        access_secret   => $access_secret, # OAuth2 access_secret
+    });
+
+    warn $oauth2_access_token;
 
 =head1 API
 
