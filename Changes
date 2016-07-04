@@ -1,6 +1,8 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+
+2.04 2016-07-04T09:49:40Z
         - Add migration guide
 
 2.03 2016-07-04T09:30:07Z

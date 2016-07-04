@@ -56,7 +56,7 @@ is $dropbox->res->code, 200;
 my $write_code_data = '';
 my $write_code = sub {
     # compatible with LWP::UserAgent and Furl::HTTP
-    my $chunk = @_ == 4 ? @_[3] : $_[0];
+    my $chunk = @_ == 4 ? $_[3] : $_[0];
     $write_code_data .= $chunk;
 };
 $dropbox->download('/make_test_folder/copy.3.txt', $write_code);

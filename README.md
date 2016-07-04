@@ -58,13 +58,13 @@ WebService::Dropbox is Perl interface to Dropbox API
 
 \- Streaming IO (Low Memory)
 
-# API v1 → v2 Migration guide
+# API v1 => v2 Migration guide
 
 files to download, files\_put to upload ...
 
 [https://www.dropbox.com/developers/reference/migration-guide](https://www.dropbox.com/developers/reference/migration-guide)
 
-## Migration OAuth1 Token → OAuth2 Token
+## Migration OAuth1 Token => OAuth2 Token
 
     use WebService::Dropbox::TokenFromOAuth1;
 
@@ -678,11 +678,3 @@ Shinichiro Aska
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
-
-# POD ERRORS
-
-Hey! **The above document had some coding errors, which are explained below:**
-
-- Around line 387:
-
-    Non-ASCII character seen before =encoding in '→'. Assuming UTF-8
