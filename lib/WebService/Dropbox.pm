@@ -386,7 +386,9 @@ WebService::Dropbox is Perl interface to Dropbox API
 
 =head1 API v1 => v2 Migration guide
 
-files to download, files_put to upload ...
+=head2 Migration API
+
+files => download, files_put => upload ...etc
 
 L<https://www.dropbox.com/developers/reference/migration-guide>
 
@@ -398,10 +400,29 @@ L<https://www.dropbox.com/developers/reference/migration-guide>
         consumer_key    => $dropbox->key,
         consumer_secret => $dropbox->secret,
         access_token    => $access_token,  # OAuth1 access_token
-        access_secret   => $access_secret, # OAuth2 access_secret
+        access_secret   => $access_secret, # OAuth1 access_secret
     });
 
     warn $oauth2_access_token;
+
+=head1 Use API v1
+
+B<Dropbox will be turning off API v1 on 6/28/2017.>
+
+L<https://blogs.dropbox.com/developers/2016/06/api-v1-deprecated/>
+
+=head2 cpanfile
+
+    requires 'WebService::Dropbox', '== 1.22';
+
+=head2 cpanm
+
+    cpanm -L local ASKADNA/WebService-Dropbox-1.22.tar.gz
+
+=head2 curl
+
+    mkdir lib/WebService
+    curl -o lib/WebService/Dropbox.pm https://raw.githubusercontent.com/s-aska/p5-WebService-Dropbox/1.22/lib/WebService/Dropbox.pm
 
 =head1 API
 
