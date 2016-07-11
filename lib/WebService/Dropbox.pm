@@ -14,7 +14,7 @@ use WebService::Dropbox::Files::UploadSession;
 # use WebService::Dropbox::Sharing; comming soon...
 use WebService::Dropbox::Users;
 
-our $VERSION = '2.04';
+our $VERSION = '2.05';
 
 __PACKAGE__->mk_accessors(qw/
     timeout
@@ -38,7 +38,7 @@ sub import {
     eval {
         require Furl;
         require IO::Socket::SSL;
-    };if ($@) {
+    };if ($@ || ($Furl::VERSION < 3.08)) {
         __PACKAGE__->use_lwp;
     }
 }

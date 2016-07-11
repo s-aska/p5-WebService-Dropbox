@@ -1,6 +1,7 @@
 Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
+        - Check Furl::VERSION
 
 2.04 2016-07-04T09:49:40Z
         - Add migration guide
