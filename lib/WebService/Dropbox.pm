@@ -171,7 +171,7 @@ ${color}%s %s\e[0m
                 $level,
                 $req->uri,
                 $req->method,
-                $req->uri->path,
+                $req->uri,
                 $req->protocol || '',
                 $req->headers->as_string,
                 ( ref $args->{content} ? '' : $args->{content} && $params ? $JSON_PRETTY->encode($params) : '' ),
