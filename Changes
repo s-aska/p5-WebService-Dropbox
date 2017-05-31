@@ -2,6 +2,9 @@ Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
 
+2.06 2017-05-31T09:51:08Z
+        - Update cpanfile
+
 2.05 2016-07-11T14:57:28Z
         - Check Furl::VERSION
 
