@@ -50,7 +50,12 @@ our $VERSION = '2.06';
 
 ```sh
 carton exec -- prove -I lib t
+```
 
+## Test for with Furl
+
+```sh
+cpanm -L local-furl  --with-recommends ./
 PERL_CARTON_PATH=local-furl carton exec -- prove -I lib t
 ```
 
