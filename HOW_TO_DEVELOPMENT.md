@@ -2,6 +2,7 @@
 ## 開発環境を作る
 
 ```sh
+export MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f-2)
 xbuild/perl-install 5.26.0 ~/local/perl-5.26
 export PATH=/Users/aska/local/perl-5.26/bin:$PATH
 carton install
@@ -49,6 +50,8 @@ our $VERSION = '2.06';
 
 ```sh
 carton exec -- prove -I lib t
+
+PERL_CARTON_PATH=local-furl carton exec -- prove -I lib t
 ```
 
 ## README.md の更新

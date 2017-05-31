@@ -6,6 +6,7 @@
 /carton.lock
 /.carton/
 local/
+local-furl/
 
 nytprof.out
 nytprof/
@@ -30,3 +31,4 @@ MYMETA.*
 !META.json
 
 cpanfile.snapshot
+.envrc
