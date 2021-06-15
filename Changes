@@ -2,6 +2,9 @@ Revision history for Perl extension WebService::Dropbox
 
 {{$NEXT}}
 
+2.08 2021-06-15T16:27:00Z
+        - Add WebService::Dropbox::Sharing (softwrx)
+
 2.07 2017-05-31T11:23:05Z
         - Fix verbose for with Furl
 
