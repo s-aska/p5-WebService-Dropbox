@@ -14,7 +14,7 @@ use WebService::Dropbox::Files::UploadSession;
 use WebService::Dropbox::Sharing;
 use WebService::Dropbox::Users;
 
-our $VERSION = '2.07';
+our $VERSION = '2.08';
 
 __PACKAGE__->mk_accessors(qw/
     timeout
