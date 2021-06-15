@@ -3,6 +3,9 @@ use strict;
 use warnings;
 use parent qw(Exporter);
 
+## preliminary version with support for creating and managing links
+## to shared files. more to follow...
+
 our @EXPORT = do {
     no strict 'refs';
     grep { $_ =~ qr{ \A [a-z] }xms } keys %{ __PACKAGE__ . '::' };
@@ -10,10 +13,10 @@ our @EXPORT = do {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#sharing-create_shared_link_with_settings
 sub create_shared_link_with_settings {
-    my ($self, $file, $settings) = @_;
+    my ($self, $path, $settings) = @_;
 
     my $params = {
-        path     => $file,
+        path     => $path,
         settings => $settings,
     };
 
@@ -25,10 +28,10 @@ sub create_shared_link_with_settings {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#sharing-list_shared_links
 sub list_shared_links {
-    my ($self, $file) = @_;
+    my ($self, $path) = @_;
 
     my $params = {
-        path     => $file,
+        path     => $path,
     };
 
     $self->api({
@@ -39,8 +42,9 @@ sub list_shared_links {
 
 # https://www.dropbox.com/developers/documentation/http/documentation#sharing-modify_shared_link_settings
 sub modify_shared_link_settings {
-    my ($self, $file, $settings, $remove_expiration) = @_;
+    my ($self, $path, $settings, $remove_expiration) = @_;
 
+    # this assumes the api converts 1 and 0 to JSON::true and JSON::false accordingly
 	if ($remove_expiration) {
 		$remove_expiration = 1;
 	} else {
@@ -48,7 +52,7 @@ sub modify_shared_link_settings {
 	}
 
     my $params = {
-        path     => $file,
+        path     => $path,
         settings => $settings,
         remove_expiration => $remove_expiration,
     };

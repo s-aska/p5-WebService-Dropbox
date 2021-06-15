@@ -34,7 +34,7 @@ $dropbox->verbose;
 #        };
 
 ## Test getting an access token when you only have the refresh token
-my $result = $dropbox->refresh_token($ENV{'DROPBOX_REFRESH_TOKEN'}) or die $dropbox->error;
+my $result = $dropbox->refresh_access_token($ENV{'DROPBOX_REFRESH_TOKEN'}) or die $dropbox->error;
 is $dropbox->res->code, 200;
 is $result->{'token_type'}, 'bearer';
 my $token = $result->{'access_token'};
