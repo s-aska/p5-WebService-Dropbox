@@ -11,7 +11,7 @@ use WebService::Dropbox::Files;
 use WebService::Dropbox::Files::CopyReference;
 use WebService::Dropbox::Files::ListFolder;
 use WebService::Dropbox::Files::UploadSession;
-# use WebService::Dropbox::Sharing; comming soon...
+use WebService::Dropbox::Sharing;
 use WebService::Dropbox::Users;
 
 our $VERSION = '2.07';
