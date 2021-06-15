@@ -75,7 +75,7 @@
          "web" : "https://github.com/s-aska/p5-WebService-Dropbox"
       }
    },
-   "version" : "2.08",
+   "version" : "2.09",
    "x_authority" : "cpan:ASKADNA",
    "x_contributors" : [
       "Dondi Michael Stroma <dstroma@gmail.com>",
