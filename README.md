@@ -270,6 +270,30 @@ my $result = $dropbox->delete($path);
 
 [https://www.dropbox.com/developers/documentation/http/documentation#files-delete](https://www.dropbox.com/developers/documentation/http/documentation#files-delete)
 
+### delete\_batch($paths)
+
+Delete the files or folders at a list of given paths. The list is provided as the first arg in an arrayref.
+
+A successful response indicates that the files or folders were queued for async deletion. The returned object will include the async\_job\_id.
+
+```perl
+my $result = $dropbox->delete_batch($paths);
+```
+
+[https://www.dropbox.com/developers/documentation/http/documentation#files-delete\_batch](https://www.dropbox.com/developers/documentation/http/documentation#files-delete_batch)
+
+### delete\_batch\_check($async\_job\_id)
+
+Fetch the status of a asynchronous job for a delete\_batch call.
+
+Returns a status tag .tag with possible values 'in\_progress', 'complete' and 'failed'. If success, also returns list of result for each entry.
+
+```perl
+my $result = $dropbox->delete_batch_check($async_job_id);
+```
+
+[https://www.dropbox.com/developers/documentation/http/documentation#files-delete\_batch-check](https://www.dropbox.com/developers/documentation/http/documentation#files-delete_batch-check)
+
 ### download($path, $output \[, \\%opts\])
 
 Download a file from a user's Dropbox.

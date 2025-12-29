@@ -4,7 +4,7 @@
       "Shinichiro Aska"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v3.1.12, CPAN::Meta::Converter version 2.150010",
+   "generated_by" : "Minilla/v3.1.29, CPAN::Meta::Converter version 2.150010",
    "license" : [
       "perl_5"
    ],
@@ -71,21 +71,22 @@
       "homepage" : "https://github.com/s-aska/p5-WebService-Dropbox",
       "repository" : {
          "type" : "git",
-         "url" : "git://github.com/s-aska/p5-WebService-Dropbox.git",
+         "url" : "https://github.com/s-aska/p5-WebService-Dropbox.git",
          "web" : "https://github.com/s-aska/p5-WebService-Dropbox"
       }
    },
-   "version" : "2.09",
+   "version" : "2.10",
    "x_authority" : "cpan:ASKADNA",
    "x_contributors" : [
       "Dondi Michael Stroma <dstroma@gmail.com>",
       "Fuji, Goro <g.psy.va@gmail.com>",
       "Greg Youngblood <47649208+softwrx@users.noreply.github.com>",
+      "Nick Tonkin <nick.tonkin@newfold.com>",
       "Rostislav Georgiev <pisaro@mail.bg>",
       "Shinichiro Aska <s.aska.org@gmail.com>",
       "aska <aska@linecorp.com>",
       "aska <aska@nl-plus.com>"
    ],
-   "x_serialization_backend" : "JSON::PP version 4.04",
+   "x_serialization_backend" : "JSON::PP version 4.06",
    "x_static_install" : 1
 }
